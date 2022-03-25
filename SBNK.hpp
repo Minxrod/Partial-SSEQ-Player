@@ -7,14 +7,14 @@
 //also GBATek 
 
 struct NoteDefinition {
-	const int SWAV_NUMBER = 0; //size 2
-	const int SWAR_NUMBER = 2; //size 2
-	const int NOTE = 4; //size 1
-	const int ATTACK = 5; //size 1
-	const int DECAY = 6; //size 1
-	const int SUSTAIN = 7; //size 1
-	const int RELEASE = 8; //size 1
-	const int PAN = 9; //size 1
+	const static int SWAV_NUMBER = 0; //size 2
+	const static int SWAR_NUMBER = 2; //size 2
+	const static int NOTE = 4; //size 1
+	const static int ATTACK = 5; //size 1
+	const static int DECAY = 6; //size 1
+	const static int SUSTAIN = 7; //size 1
+	const static int RELEASE = 8; //size 1
+	const static int PAN = 9; //size 1
 	
 	int swav_no;
 	int swar_no;
@@ -44,8 +44,9 @@ struct Instrument {
 	std::vector<NoteDefinition> notes;
 	
 	void read(char* data);
-	
 	std::string info();
+	
+	NoteDefinition& get_note_def(int);
 };
 
 struct SBNK {

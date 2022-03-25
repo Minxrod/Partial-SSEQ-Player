@@ -4,7 +4,9 @@
 #include <vector>
 
 #include "SWAV.hpp"
+#include "SWAR.hpp"
 #include "SBNK.hpp"
+#include "SSEQ.hpp"
 
 //https://www.romhacking.net/documents/%5B469%5Dnds_formats.htm#SDAT
 
@@ -36,17 +38,34 @@ private:
 	virtual void onSeek(sf::Time t);
 };
 
-class SSEQStream : public sf::SoundStream {
+class SampleStream : public sf::SoundStream {
 public:
 	void init(std::vector<short>*, unsigned int, unsigned int);
-
+	
 private:
 	unsigned int ls = 0;
 	std::vector<short>* d = nullptr;
 	std::vector<sf::Int16> samps;
-
 	virtual bool onGetData(Chunk& c);
 	virtual void onSeek(sf::Time t);
 	
 	//virtual sf::Int64 onLoop();
+};
+
+class SSEQStream : public sf::SoundStream {
+public:
+	SSEQStream(SWAR&, SBNK&, SSEQ&);
+	
+private:
+	const static int PLAYBACK_SAMPLE_RATE = 22050;
+	int tempo;
+	
+	SWAR& swar;
+	SBNK& sbnk;
+	SSEQ& sseq;
+	
+	std::vector<sf::Int16> samples;
+	
+	virtual bool onGetData(Chunk& c);
+	virtual void onSeek(sf::Time t);
 };

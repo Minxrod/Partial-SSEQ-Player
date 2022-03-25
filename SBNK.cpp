@@ -79,6 +79,20 @@ std::string Instrument::info(){
 	return info;
 }
 
+NoteDefinition& Instrument::get_note_def(int note){
+	if (f_record == F_RECORD_REGIONAL){
+		int region = 0;
+		while (note >= note_numbers[region]){
+			region++;
+		}
+		return notes[region];
+	} else if (f_record == F_RECORD_RANGE){
+		return notes[note];
+	} else {
+		throw std::runtime_error{"unimplemented type"};
+	}
+}
+
 void NoteDefinition::read(char* data){
 	swav_no = binary_as_ushort(&data[SWAV_NUMBER]);
 	swar_no = binary_as_ushort(&data[SWAR_NUMBER]);

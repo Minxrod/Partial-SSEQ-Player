@@ -4,7 +4,35 @@
 #include <fstream>
 #include <algorithm>
 
-void SSEQStream::init(std::vector<short>* dat, unsigned int sampleRate, unsigned int loopStart){
+
+SSEQStream::SSEQStream(SWAR& wave, SBNK& bank, SSEQ& sequence) : swar(wave), sbnk(bank), sseq(sequence){
+	samples.resize(50000); //arbitrary
+	initialize(1, PLAYBACK_SAMPLE_RATE);
+	tempo = 147; //temp test value for SSEQ_0000
+}
+
+bool SSEQStream::onGetData(Chunk& chunk){
+	//play one note of SSEQ...
+	chunk.sampleCount = 50000;
+	
+	for (std::size_t s = 0; s < chunk.sampleCount; ++s){
+		
+		
+		
+	}
+	
+	
+	return false;
+}
+
+// Does nothing, because it isn't needed.
+void SSEQStream::onSeek(sf::Time){}
+
+/*
+ * Random testing stuff below!
+ */
+
+void SampleStream::init(std::vector<short>* dat, unsigned int sampleRate, unsigned int loopStart){
 	initialize((unsigned int)1, (unsigned int)sampleRate);
 	d = dat;
 	ls = loopStart;
@@ -61,10 +89,10 @@ bool SWAVStream::onGetData(Chunk& c){
 	return true;
 }
 
-bool SSEQStream::onGetData(Chunk&){
+bool SampleStream::onGetData(Chunk&){
 	return false;
 }
 
 void InstrumentStream::onSeek(sf::Time){}
 void SWAVStream::onSeek(sf::Time){}
-void SSEQStream::onSeek(sf::Time){}
+void SampleStream::onSeek(sf::Time){}
