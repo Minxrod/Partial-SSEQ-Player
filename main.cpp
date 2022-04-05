@@ -11,21 +11,21 @@
 
 int main(){
 	SWAR swar;
-	swar.open("SWAR_0000.swar");
+	swar.open("test_files/SWAR_0000.swar");
 	
 	// Test SWAR loading
-	//for (int i = 145; i < 152/*(int)swar.swav.size()*/; ++i){
-	//	std::cout << swar.swav[i].info() << std::endl;
-		
+//	for (int i = 0; i < (int)swar.swav.size(); ++i){
+//		std::cout << swar.swav[i].info() << std::endl;
+//		
 //		SWAVStream swavstrm{swar.swav[i]};
 //		swavstrm.play();
 //		
-//		sf::sleep(sf::seconds(5));
+//		sf::sleep(sf::seconds(1));
 //		swavstrm.stop();
 //	}
 	
 	SBNK bank;
-	bank.open("SBNK_0000.sbnk");
+	bank.open("test_files/SBNK_0000.sbnk");
 	
 //	for (auto& instr : bank.instruments){
 //		std::cout << instr.info() << std::endl;
@@ -66,13 +66,13 @@ int main(){
 	}*/
 	
 	SSEQ sseq;
-	sseq.open("SSEQ_0000.sseq");
+	sseq.open("test_files/SSEQ_13.sseq");
 	
 	SSEQStream seqstrm{swar, bank, sseq};
 	seqstrm.play();
-	sf::sleep(sf::seconds(20));
+	sf::sleep(sf::seconds(30));
 	
-	std::cout << sseq.info() << std::endl;
+//	std::cout << sseq.info() << std::endl;
 	
 	return 0;
 }

@@ -88,6 +88,8 @@ NoteDefinition& Instrument::get_note_def(int note){
 		return notes[region];
 	} else if (f_record == F_RECORD_RANGE){
 		return notes[note];
+	} else if (f_record == F_RECORD_PCM){
+		return notes[0];
 	} else if (f_record == F_RECORD_EMPTY){
 		throw std::runtime_error{"Instrument::get_note_def: Hit invalid type F_RECORD_EMPTY"};
 	} else {

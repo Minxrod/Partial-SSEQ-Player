@@ -70,7 +70,10 @@ private:
 	std::vector<sf::Int16> samples2;
 	
 	short get_sample(int instrument, int note, std::size_t index);
+	void process_event(Channel& channel, Event& event);
+	int index_from_offset(int offset);
 	
-	virtual bool onGetData(Chunk& c);
-	virtual void onSeek(sf::Time t);
+	// sf::SoundStream overrides
+	virtual bool onGetData(Chunk& c) override;
+	virtual void onSeek(sf::Time t) override;
 };

@@ -47,8 +47,12 @@ struct Channel {
 	std::string info();
 	
 	int instr = 0;
-	int current_index;
-	int remaining_samples;
+	int current_index; //event index in SSEQ
+	
+	int current_sample; //current sample (during playback)
+	int max_samples; //length of this event (in samples; during playback)
+	int next_process_delay; //how long to wait to start processing again
+	Event* current_note_event;
 	
 	std::vector<int> call_stack{};
 };
@@ -64,6 +68,8 @@ struct SSEQ {
 	
 	void open(std::string filename);
 	std::string info();
+	
+	int tempo; // processed during initial events
 	
 private:
 	int variable_length(int& i);

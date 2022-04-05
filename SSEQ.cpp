@@ -75,6 +75,7 @@ void SSEQ::open(std::string filename){
 		} else if (event == Event::TEMPO){
 			events.emplace_back(event);
 			events.back().value1 = binary_as_ushort(&data[i]);
+			tempo = events.back().value1;
 			i+=2;
 		} else if (event == Event::VOLUME){
 			events.push_back(Event(event));
@@ -160,7 +161,7 @@ std::string SSEQ::info(){
 
 std::string Channel::info(){
 	std::string info{};
-	info += "Channel " + std::to_string(id) + ": (Offset: " + std::to_string(offset) + ")\n"; 
+	info += "Channel " + std::to_string(id) + ": (Offset: " + as_hex(offset) + ")\n"; 
 /*	for (auto& event : events){
 		info += event.info();
 	}*/
@@ -185,7 +186,7 @@ std::string Event::info(){
 	} else if (type == Event::PITCH_BEND_RANGE){
 		info += " Pitch bend Range [Semitones?:" + std::to_string(value1) + "]";
 	} else if (type == Event::MONO_POLY){
-		info += " Mono [" + as_hex(value1) + "]";
+		info += " Mono? [" + as_hex(value1) + "]";
 	} else if (type == Event::CALL){
 		info += " Call [Offset:" + as_hex(value1) + "]";
 	} else if (type == Event::JUMP){

@@ -8,7 +8,7 @@
 #include <cmath>
 
 
-int index_from_offset(SSEQ& sseq, int offset){
+int SSEQStream::index_from_offset(int offset){
 	return std::distance(sseq.event_location.begin(), std::find(sseq.event_location.begin(), sseq.event_location.end(), offset));
 }
 
@@ -16,14 +16,17 @@ SSEQStream::SSEQStream(SWAR& wave, SBNK& bank, SSEQ& sequence) : swar(wave), sbn
 	samples1.resize(50000); //arbitrary
 	samples2.resize(50000);
 	initialize(1, PLAYBACK_SAMPLE_RATE);
-	tempo = 147; //temp test value for SSEQ_0000
+	tempo = sseq.tempo;
 	
 	for (auto& c : sseq.channels){
-		c.remaining_samples = 0;
-		c.current_index = index_from_offset(sseq, c.offset);
+		c.current_index = index_from_offset(c.offset);
 		c.instr = 0;
 		std::cout << c.enabled << " " << c.id << " -> " << c.current_index << std::endl;
+		c.next_process_delay = 0;
 	}
+	//enable channel zero
+	sseq.channels[0].current_index = 0;
+	sseq.channels[0].enabled = true; //needed for SSEQ_5
 }
 
 //returns duration in terms of samplerate, not ticks
@@ -36,14 +39,20 @@ short calculate_sample(int sample, int velocity){
 	return sample * velocity / 128;
 }
 
-void process_event(Channel& channel, Event& event){
-	if (event.type <= Event::NOTE_HIGH){
-		channel.remaining_samples = duration(147, event.value2);
-	} else if (event.type == Event::REST) {
-		channel.remaining_samples = duration(147, event.value1);	
-	}
-//	std::cout << as_hex(channel.current_index) << ": " << event.info() << " " << channel.remaining_samples << std::endl;
-}
+//void SSEQStream::process_event(Channel& channel, Event& event){
+////	channel.max_samples = -1;
+////	channel.current_sample = 0;
+//	if (event.type <= Event::NOTE_HIGH){
+//		channel.max_samples = duration(tempo, event.value2);
+//		channel.current_sample = 0;
+//		channel.current_note_event = &event;
+//	} else if (event.type == Event::REST) {
+//		channel.next_process_delay = duration(tempo, event.value1);
+////		channel.max_samples = duration(tempo, event.value1);
+//		std::cout << "Delay " << channel.next_process_delay << " / ";
+//	}
+//	std::cout << as_hex(channel.current_index) << ": " << event.info() << " " << channel.current_sample << std::endl;
+//}
 
 bool SSEQStream::onGetData(Chunk& chunk){
 	chunk.sampleCount = 50000;
@@ -51,59 +60,77 @@ bool SSEQStream::onGetData(Chunk& chunk){
 	which = !which;
 	auto& samples = which ? samples1 : samples2;
 	
+	int added_samples = 0;
+	for (auto& channel : sseq.channels){
+		added_samples += channel.enabled ? 1 : 0;
+	}
+	
 	for (std::size_t s = offset; s < offset + chunk.sampleCount; ++s){
 		int partial_sample = 0;
-		int added_samples = 0;
+//		int added_samples = ;
 		samples[s-offset] = 0; //Clear before next iteration
 		for (auto& channel : sseq.channels){
 			if (!channel.enabled)
 				continue;
-			if (!(1<<channel.id & (0xffff)))
+			if (!(1<<channel.id & (1<<11 | 0xffff)))
 				continue;
 			bool instant_event;
+			channel.next_process_delay--;
 			do {
 				instant_event = false;
-				if (channel.remaining_samples > 0)
+				if (channel.next_process_delay > 0)
 					break;
-				auto& next_event = sseq.events.at(channel.current_index + 1);
-				if (next_event.type == Event::BANK){
+					
+				auto& event = sseq.events.at(channel.current_index);
+				if (event.type == Event::BANK){
 					instant_event = true;
-					channel.instr = static_cast<unsigned char>(next_event.value1) % 128;
-					channel.current_index++; //advance to this event that just did something
-					std::cout << channel.id << " " << next_event.value1 << std::endl;
-				} else if (next_event.type == Event::JUMP) {
+					channel.instr = static_cast<unsigned char>(event.value2 * (128+event.value1)) % 128;
+					std::cout << channel.id << " " << event.value1 << " " << event.value2 << std::endl;
+				} else if (event.type == Event::JUMP) {
 					instant_event = true;
-					channel.current_index = index_from_offset(sseq, next_event.value1);
-				} else if (next_event.type == Event::CALL) {
+					channel.current_index = index_from_offset(event.value1);
+				} else if (event.type == Event::CALL) {
 					instant_event = true;
-					channel.current_index = index_from_offset(sseq, next_event.value1);
 					channel.call_stack.push_back(channel.current_index);
-				} else if (next_event.type == Event::RETURN) {
+					channel.current_index = index_from_offset(event.value1);
+				} else if (event.type == Event::RETURN) {
 					instant_event = true;
-					channel.current_index = channel.call_stack.back();
+					channel.current_index = channel.call_stack.back()+1;
 					channel.call_stack.pop_back();
-				} else {
-//					if (next_event.type > Event::REST)
-//						std::cout << next_event.info() << std::endl;
+				} else if (event.type <= Event::NOTE_HIGH) {
+					instant_event = true;
+					if (channel.current_sample >= channel.max_samples){
+						channel.max_samples = duration(tempo, event.value2);
+						channel.current_sample = 0;
+						channel.current_note_event = &event;
+					}
+				} else if (event.type == Event::REST) {
+					channel.next_process_delay = duration(tempo, event.value1);
+				} else if (event.type == Event::TEMPO) {
+					tempo = event.value1; //hmmm
+				} else if (event.type == Event::END_OF_TRACK){
+					channel.enabled = false; // this channel now disabled (done playing)
 				}
+				else {
+//					instant_event = true;
+					// Displays unimplemented events
+					//std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
+				}
+				if (event.type != Event::JUMP && event.type != Event::CALL && event.type != Event::RETURN) {
+					channel.current_index++;
+				} else {
+					// We have already set the next event index, don't want to skip this event
+				}
+				
+//				std::cout << as_hex(channel.current_index) << ": " << event.info() << " " << channel.current_sample << std::endl;
 			} while (instant_event);
 			
-			if (channel.remaining_samples <= 0){
-				// go to next event
-				channel.current_index++;
-				auto& event = sseq.events[channel.current_index];
-				process_event(channel, event);
-			} else {
-				// still processing this event
-				channel.remaining_samples--;
-			}
-			auto& event = sseq.events[channel.current_index];
+			channel.current_sample++;
+//			auto& event = sseq.events[channel.current_index];
 			
-			if (event.type <= Event::NOTE_HIGH){
-				partial_sample += get_sample(channel.instr, event.type, s);
-				added_samples++;
-			} else if (event.type == Event::REST) {
-//				partial_sample = 0;
+			if (channel.current_sample < channel.max_samples){
+				partial_sample += get_sample(channel.instr, channel.current_note_event->type, channel.current_sample);
+//				added_samples++;
 			}
 		}
 		if (partial_sample){
@@ -117,14 +144,19 @@ bool SSEQStream::onGetData(Chunk& chunk){
 	chunk.samples = samples.data();
 	offset += 50000;
 	
-	return true;
+	// only continue if channels are still going
+	for (auto& channel : sseq.channels){
+		if (channel.enabled)
+			return true;
+	}
+	return false;
 }
 
 short SSEQStream::get_sample(int instrument, int note, std::size_t index){
 	auto& note_def = sbnk.instruments[instrument].get_note_def(note);
 	auto& waveform = swar.swav[note_def.swav_no];
 	double note_shift = std::pow(2, (note - note_def.note)/12.0);
-//	note_shift *= (static_cast<double>(waveform.sampleRate) / static_cast<double>(PLAYBACK_SAMPLE_RATE));
+	note_shift *= (static_cast<double>(waveform.sampleRate) / static_cast<double>(PLAYBACK_SAMPLE_RATE));
 	
 	std::size_t actual_index = note_shift * index;
 	if (actual_index < waveform.samples.size()){
