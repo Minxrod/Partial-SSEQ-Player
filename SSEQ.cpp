@@ -136,7 +136,6 @@ void SSEQ::open(std::string filename){
 			i+=3;
 		} else if (event == Event::RETURN){
 			events.emplace_back(event);
-			++i;
 		} else if (event == Event::END_OF_TRACK){
 			events.emplace_back(event);
 		} else {
@@ -171,30 +170,34 @@ std::string Channel::info(){
 std::string Event::info(){
 	std::string info{};
 	const std::vector<std::string> notes = {"C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"};
-	if (event_type == Event::PAN){
+	if (type == Event::PAN){
 		info += " Pan " + std::to_string(value1);
-	} else if (event_type == Event::VOLUME){
+	} else if (type == Event::VOLUME){
 		info += " Volume " + std::to_string(value1);
-	} else if (event_type == Event::BANK){
+	} else if (type == Event::BANK){
 		info += " Bank [Prog.No:" + as_hex(value1) + ", Bank:" + std::to_string(value2) + "]";
-	} else if (Event::NOTE_LOW <= event_type && event_type <= Event::NOTE_HIGH){
-		info += " Note O" + std::to_string(event_type / 12) + notes.at(event_type % 12) + " [Velocity: " + std::to_string(value1) + ", Duration: " + std::to_string(value2) + "]";
-	} else if (event_type == Event::REST){
+	} else if (Event::NOTE_LOW <= type && type <= Event::NOTE_HIGH){
+		info += " Note O" + std::to_string(type / 12) + notes.at(type % 12) + " [Velocity: " + std::to_string(value1) + ", Duration: " + std::to_string(value2) + "]";
+	} else if (type == Event::REST){
 		info += " Rest [Duration:" + std::to_string(value1) + "]";
-	} else if (event_type == Event::PITCH_BEND){
+	} else if (type == Event::PITCH_BEND){
 		info += " Pitch bend [x/128?:" + std::to_string(value1) + "]";
-	} else if (event_type == Event::PITCH_BEND_RANGE){
+	} else if (type == Event::PITCH_BEND_RANGE){
 		info += " Pitch bend Range [Semitones?:" + std::to_string(value1) + "]";
-	} else if (event_type == Event::CALL){
+	} else if (type == Event::MONO_POLY){
+		info += " Mono [" + as_hex(value1) + "]";
+	} else if (type == Event::CALL){
 		info += " Call [Offset:" + as_hex(value1) + "]";
-	} else if (event_type == Event::JUMP){
+	} else if (type == Event::JUMP){
 		info += " Jump [Offset:" + as_hex(value1) + "]";
-	} else if (event_type == Event::END_OF_TRACK){
+	} else if (type == Event::RETURN){
+		info += " Return";
+	} else if (type == Event::END_OF_TRACK){
 		info += " End Track";
-	} else if (event_type == Event::TEMPO){
+	} else if (type == Event::TEMPO){
 		info += " Tempo [BPM:" + std::to_string(value1)+ "]";
 	} else {
-		info += " Type " + as_hex(event_type);
+		info += " Type " + as_hex(type);
 		info += " Data " + as_hex(value1) + ", " + as_hex(value2);
 	}
 	return info + "\n";

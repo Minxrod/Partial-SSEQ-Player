@@ -70,6 +70,7 @@ int main(){
 	
 	SSEQStream seqstrm{swar, bank, sseq};
 	seqstrm.play();
+	sf::sleep(sf::seconds(20));
 	
 	std::cout << sseq.info() << std::endl;
 	

@@ -16,21 +16,21 @@ struct Event {
 		PAN=0xc0,
 		VOLUME=0xc1,
 //		MASTER_VOLUME=0xc2,
+		PITCH_BEND=0xc4,
+		PITCH_BEND_RANGE=0xc5,
+		MONO_POLY=0xc7, //1 byte
 		MODULATION_DEPTH=0xca,
 		MODULATION_SPEED=0xcb,
 		MODULATION_TYPE=0xcc,
 		MODULATION_RANGE=0xcd,
-		PITCH_BEND=0xc4,
-		PITCH_BEND_RANGE=0xc5,
-		MONO_POLY=0xc7, //1 byte
 		TEMPO=0xe1, //2 byte
 		RETURN=0xfd,
 		TRACKS_ENABLED=0xfe,
 		END_OF_TRACK=0xff;
 	
-	Event(unsigned char type):event_type{type}{}
+	Event(unsigned char t):type{t}{}
 	
-	unsigned char event_type;
+	unsigned char type;
 	int value1;
 	int value2;
 	
@@ -43,12 +43,14 @@ struct Channel {
 	int offset;
 	bool enabled = false;
 	
-//	std::vector<Event> events;
-	
-	void read(char* data);
+//	void read(char* data);
 	std::string info();
 	
+	int instr = 0;
 	int current_index;
+	int remaining_samples;
+	
+	std::vector<int> call_stack{};
 };
 
 struct SSEQ {

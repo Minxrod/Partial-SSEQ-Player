@@ -59,12 +59,17 @@ public:
 private:
 	const static int PLAYBACK_SAMPLE_RATE = 22050;
 	int tempo;
+	int offset = 0;
 	
 	SWAR& swar;
 	SBNK& sbnk;
 	SSEQ& sseq;
 	
-	std::vector<sf::Int16> samples;
+	bool which = false;
+	std::vector<sf::Int16> samples1;
+	std::vector<sf::Int16> samples2;
+	
+	short get_sample(int instrument, int note, std::size_t index);
 	
 	virtual bool onGetData(Chunk& c);
 	virtual void onSeek(sf::Time t);
