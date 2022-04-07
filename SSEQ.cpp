@@ -87,9 +87,9 @@ void SSEQ::open(std::string filename){
 			++i;
 		} else if (event == Event::BANK){
 			events.push_back(Event(event));
-			events.back().value1 = data[i];
-			events.back().value2 = data[i+1];
-			i+=2;
+			int instr_bank = variable_length(i);
+			events.back().value1 = instr_bank & 0x00ff; //instrument
+			events.back().value2 = (instr_bank & 0x3f00) >> 8; //bank
 		} else if (Event::NOTE_LOW <= event && event <= Event::NOTE_HIGH){
 			events.push_back(Event(event));
 			events.back().value1 = static_cast<unsigned char>(data[i]);

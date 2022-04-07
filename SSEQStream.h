@@ -55,9 +55,9 @@ private:
 class SSEQStream : public sf::SoundStream {
 public:
 	SSEQStream(SWAR&, SBNK&, SSEQ&);
+	const static int PLAYBACK_SAMPLE_RATE = 44100;
 	
 private:
-	const static int PLAYBACK_SAMPLE_RATE = 22050;
 	int tempo;
 	int offset = 0;
 	

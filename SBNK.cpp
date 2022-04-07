@@ -27,7 +27,7 @@ void SBNK::open(std::string filename){
 void Instrument::read(char* data){
 	if (f_record == F_RECORD_EMPTY)
 		return; // no data
-	if (f_record == F_RECORD_PCM || f_record == F_RECORD_PSG){
+	if (f_record == F_RECORD_PCM || f_record == F_RECORD_PSG || f_record == F_RECORD_NOISE){
 		notes.resize(1);
 		notes[0].read(data);
 	} else if (f_record == F_RECORD_RANGE){
@@ -89,6 +89,10 @@ NoteDefinition& Instrument::get_note_def(int note){
 	} else if (f_record == F_RECORD_RANGE){
 		return notes[note];
 	} else if (f_record == F_RECORD_PCM){
+		return notes[0];
+	} else if (f_record == F_RECORD_PSG){
+		return notes[0];
+	} else if (f_record == F_RECORD_NOISE){
 		return notes[0];
 	} else if (f_record == F_RECORD_EMPTY){
 		throw std::runtime_error{"Instrument::get_note_def: Hit invalid type F_RECORD_EMPTY"};

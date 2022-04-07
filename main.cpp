@@ -23,13 +23,14 @@ int main(){
 //		sf::sleep(sf::seconds(1));
 //		swavstrm.stop();
 //	}
+	std::cout << swar.swav[230].info() << std::endl;
 	
 	SBNK bank;
 	bank.open("test_files/SBNK_0000.sbnk");
 	
-//	for (auto& instr : bank.instruments){
-//		std::cout << instr.info() << std::endl;
-//	}
+	for (auto& instr : bank.instruments){
+		std::cout << instr.info() << std::endl;
+	}
 	
 //	SWAVStream strm2{swar.swav[150]};
 //	strm2.play();
@@ -65,13 +66,16 @@ int main(){
 		s.stop();
 	}*/
 	
-	SSEQ sseq;
-	sseq.open("test_files/SSEQ_13.sseq");
-	
-	SSEQStream seqstrm{swar, bank, sseq};
-	seqstrm.play();
-	sf::sleep(sf::seconds(30));
-	
+	//76: implement D5
+	for (int i = 24; i < 30; ++i){
+		SSEQ sseq;
+		sseq.open("test_files/SSEQ_"+std::to_string(i)+".sseq");
+//		std::cout << i << ": " << sseq.info() << std::endl;
+		
+		SSEQStream seqstrm{swar, bank, sseq};
+		seqstrm.play();
+		sf::sleep(sf::seconds(27));
+	}
 //	std::cout << sseq.info() << std::endl;
 	
 	return 0;

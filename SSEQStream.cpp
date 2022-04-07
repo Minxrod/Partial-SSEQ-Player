@@ -32,7 +32,7 @@ SSEQStream::SSEQStream(SWAR& wave, SBNK& bank, SSEQ& sequence) : swar(wave), sbn
 //returns duration in terms of samplerate, not ticks
 //60 = sec/min
 int duration(double tempo, double ticks){
-	return 22050.0 * 60.0 * ticks / 48.0 / tempo;
+	return SSEQStream::PLAYBACK_SAMPLE_RATE * 60.0 * ticks / 48.0 / tempo;
 }
 
 short calculate_sample(int sample, int velocity){
@@ -72,7 +72,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 		for (auto& channel : sseq.channels){
 			if (!channel.enabled)
 				continue;
-			if (!(1<<channel.id & (1<<11 | 0xffff)))
+			if (!(1<<channel.id & (1<<1 | 0xffff)))
 				continue;
 			bool instant_event;
 			channel.next_process_delay--;
@@ -84,7 +84,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 				auto& event = sseq.events.at(channel.current_index);
 				if (event.type == Event::BANK){
 					instant_event = true;
-					channel.instr = static_cast<unsigned char>(event.value2 * (128+event.value1)) % 128;
+					channel.instr = (static_cast<unsigned char>(event.value1) % 128) + 256 * event.value2;
 					std::cout << channel.id << " " << event.value1 << " " << event.value2 << std::endl;
 				} else if (event.type == Event::JUMP) {
 					instant_event = true;
@@ -153,23 +153,57 @@ bool SSEQStream::onGetData(Chunk& chunk){
 }
 
 short SSEQStream::get_sample(int instrument, int note, std::size_t index){
-	auto& note_def = sbnk.instruments[instrument].get_note_def(note);
-	auto& waveform = swar.swav[note_def.swav_no];
-	double note_shift = std::pow(2, (note - note_def.note)/12.0);
-	note_shift *= (static_cast<double>(waveform.sampleRate) / static_cast<double>(PLAYBACK_SAMPLE_RATE));
+	static int current_noise = 0x7fff;
 	
-	std::size_t actual_index = note_shift * index;
-	if (actual_index < waveform.samples.size()){
-		return waveform.samples[actual_index];
-	}
-	if (waveform.loopSupport){
-		actual_index -= waveform.loopStart;
-		actual_index %= waveform.loopLength;
-		actual_index += waveform.loopStart;
-		return waveform.samples[actual_index];
+	auto& instr = sbnk.instruments[instrument];
+	auto& note_def = instr.get_note_def(note);
+	double note_shift;
+	if (instr.f_record == Instrument::F_RECORD_PSG){
+		note_shift = std::pow(2, (note - 69)/12.0);
 	} else {
-		return 0;
+		note_shift = std::pow(2, (note - note_def.note)/12.0);
 	}
+	
+	if (instr.f_record == Instrument::F_RECORD_PCM ||
+		instr.f_record == Instrument::F_RECORD_RANGE || 
+		instr.f_record == Instrument::F_RECORD_REGIONAL) {
+		auto& waveform = swar.swav[note_def.swav_no];
+		note_shift *= (static_cast<double>(waveform.sampleRate) / static_cast<double>(PLAYBACK_SAMPLE_RATE));	
+		
+		std::size_t actual_index = note_shift * index;
+		if (actual_index < waveform.samples.size()){
+			return waveform.samples[actual_index];
+		}
+		if (waveform.loopSupport){
+			actual_index -= waveform.loopStart;
+			actual_index %= waveform.loopLength;
+			actual_index += waveform.loopStart;
+			return waveform.samples[actual_index];
+		} else {
+			return 0;
+		}
+	} else if (instr.f_record == Instrument::F_RECORD_PSG){
+		note_shift *= 28160.0 / static_cast<double>(PLAYBACK_SAMPLE_RATE);
+		double actual_index = index * note_shift;
+		
+		auto psg = [](int index, int cycle){ return (index % 128 < (cycle + 1) * 16) ? -32767.0 : 32767.0; };
+		
+		double sample = psg(actual_index, note_def.swav_no); // * frac_index + (1.0 - frac_index) * psg(lower_index+1, note_def.swav_no);
+		
+		return (int)sample;
+	} else if (instr.f_record == Instrument::F_RECORD_NOISE){
+		//Taken from GBATEK
+		//X=X SHR 1, IF carry THEN Out=LOW, X=X XOR 6000h ELSE Out=HIGH
+		bool carry = (current_noise & 0x01) > 0;
+		current_noise >>= 1;
+		if (carry){
+			current_noise ^= 0x6000;
+			return -32767;
+		} else {
+			return 32767;
+		}
+	}
+	return 0;
 }
 
 

@@ -31,12 +31,12 @@ struct NoteDefinition {
 };
 
 struct Instrument {
-	const int F_RECORD_EMPTY = 0;
-	const int F_RECORD_PCM = 1;
-	const int F_RECORD_PSG = 2;
-	const int F_RECORD_NOISE = 3;
-	const int F_RECORD_RANGE = 16;
-	const int F_RECORD_REGIONAL = 17;
+	const static int F_RECORD_EMPTY = 0;
+	const static int F_RECORD_PCM = 1;
+	const static int F_RECORD_PSG = 2;
+	const static int F_RECORD_NOISE = 3;
+	const static int F_RECORD_RANGE = 16;
+	const static int F_RECORD_REGIONAL = 17;
 	
 	int id;
 	int f_record;
