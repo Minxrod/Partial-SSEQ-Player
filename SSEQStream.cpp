@@ -13,9 +13,9 @@ int SSEQStream::index_from_offset(int offset){
 }
 
 SSEQStream::SSEQStream(SWAR& wave, SBNK& bank, SSEQ& sequence) : swar(wave), sbnk(bank), sseq(sequence){
-	samples1.resize(50000); //arbitrary
-	samples2.resize(50000);
-	initialize(1, PLAYBACK_SAMPLE_RATE);
+	samples1.resize(50000*2); //arbitrary
+	samples2.resize(50000*2);
+	initialize(2, PLAYBACK_SAMPLE_RATE);
 	tempo = sseq.tempo;
 	
 	for (auto& c : sseq.channels){
@@ -55,9 +55,9 @@ short calculate_sample(int sample, int velocity){
 //}
 
 bool SSEQStream::onGetData(Chunk& chunk){
-	chunk.sampleCount = 50000;
+	chunk.sampleCount = 50000*2;
 	
-	which = !which;
+//	which = !which;
 	auto& samples = which ? samples1 : samples2;
 	
 	int added_samples = 0;
@@ -65,10 +65,11 @@ bool SSEQStream::onGetData(Chunk& chunk){
 		added_samples += channel.enabled ? 1 : 0;
 	}
 	
-	for (std::size_t s = offset; s < offset + chunk.sampleCount; ++s){
+	for (std::size_t s = offset; s < offset + (unsigned)50000; ++s){
 		int partial_sample = 0;
-//		int added_samples = ;
-		samples[s-offset] = 0; //Clear before next iteration
+		int left_sample = 0;
+		int right_sample = 0;
+//		samples[s-offset] = 0; //Clear before next iteration
 		for (auto& channel : sseq.channels){
 			if (!channel.enabled)
 				continue;
@@ -77,44 +78,48 @@ bool SSEQStream::onGetData(Chunk& chunk){
 			bool instant_event;
 			channel.next_process_delay--;
 			do {
-				instant_event = false;
+				instant_event = true;
 				if (channel.next_process_delay > 0)
 					break;
 					
 				auto& event = sseq.events.at(channel.current_index);
 				if (event.type == Event::BANK){
-					instant_event = true;
 					channel.instr = (static_cast<unsigned char>(event.value1) % 128) + 256 * event.value2;
 					std::cout << channel.id << " " << event.value1 << " " << event.value2 << std::endl;
 				} else if (event.type == Event::JUMP) {
-					instant_event = true;
 					channel.current_index = index_from_offset(event.value1);
 				} else if (event.type == Event::CALL) {
-					instant_event = true;
 					channel.call_stack.push_back(channel.current_index);
 					channel.current_index = index_from_offset(event.value1);
 				} else if (event.type == Event::RETURN) {
-					instant_event = true;
 					channel.current_index = channel.call_stack.back()+1;
 					channel.call_stack.pop_back();
 				} else if (event.type <= Event::NOTE_HIGH) {
-					instant_event = true;
-					if (channel.current_sample >= channel.max_samples){
-						channel.max_samples = duration(tempo, event.value2);
-						channel.current_sample = 0;
-						channel.current_note_event = &event;
-					}
+					channel.max_samples = duration(tempo, event.value2);
+					channel.current_sample = 0;
+					channel.current_note_event = &event;
+					channel.phase = Channel::PHASE_ATTACK;
+					channel.amplitude = Channel::ADSR_MINIMUM;
 				} else if (event.type == Event::REST) {
+					instant_event = false;
 					channel.next_process_delay = duration(tempo, event.value1);
 				} else if (event.type == Event::TEMPO) {
 					tempo = event.value1; //hmmm
 				} else if (event.type == Event::END_OF_TRACK){
+					instant_event = false; // otherwise, continues to read events (sometimes past valid end)
 					channel.enabled = false; // this channel now disabled (done playing)
-				}
-				else {
-//					instant_event = true;
+				} else if (event.type == Event::PITCH_BEND_RANGE){
+					channel.pitch_bend_range = event.value1;
+				} else if (event.type == Event::PITCH_BEND){
+					channel.pitch_bend = event.value1;
+				} else if (event.type == Event::VOLUME){
+					channel.volume = event.value1;
+				} else if (event.type == Event::PAN){
+					channel.pan = event.value1;
+				} else {
+					instant_event = false;
 					// Displays unimplemented events
-					//std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
+					std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
 				}
 				if (event.type != Event::JUMP && event.type != Event::CALL && event.type != Event::RETURN) {
 					channel.current_index++;
@@ -128,15 +133,23 @@ bool SSEQStream::onGetData(Chunk& chunk){
 			channel.current_sample++;
 //			auto& event = sseq.events[channel.current_index];
 			
-			if (channel.current_sample < channel.max_samples){
-				partial_sample += get_sample(channel.instr, channel.current_note_event->type, channel.current_sample);
-//				added_samples++;
+			if (channel.phase != Channel::PHASE_NONE){
+				short sample = get_sample(channel);
+				sample = apply_adsr(channel, sample) * (static_cast<double>(channel.volume) / 128);
+				partial_sample = sample;
+				
+				int pan = channel.pan == 127 ? 128 : channel.pan;
+				left_sample += partial_sample * (static_cast<double>(128 - pan)/128.0);
+				right_sample += partial_sample * (static_cast<double>(pan)/128.0);
 			}
 		}
-		if (partial_sample){
+		samples[2*(s-offset)] = 0;
+		samples[2*(s-offset)+1] = 0;
+		if (left_sample | right_sample){
 			//doing this based on https://dsp.stackexchange.com/questions/3581/algorithms-to-mix-audio-signals-without-clipping
 			//It seems to work well enough?
-			samples[s-offset] = partial_sample/added_samples;
+			samples[2*(s-offset)] = left_sample/added_samples;
+			samples[2*(s-offset)+1] = right_sample/added_samples;
 		}
 	}
 	std::cout << "EOM" << std::endl;
@@ -152,10 +165,45 @@ bool SSEQStream::onGetData(Chunk& chunk){
 	return false;
 }
 
-short SSEQStream::get_sample(int instrument, int note, std::size_t index){
+short SSEQStream::apply_adsr(Channel& channel, short sample){
+	auto& instr = sbnk.instruments[channel.instr];
+	auto& note_def = instr.get_note_def(channel.current_note_event->type);
+	
+	if (channel.phase == Channel::PHASE_ATTACK){
+		channel.amplitude = note_def.attack * channel.amplitude / 255;
+		if (channel.amplitude >= Channel::ADSR_MAXIMUM){
+			channel.amplitude = Channel::ADSR_MAXIMUM;
+			channel.phase = Channel::PHASE_DECAY;
+		}
+	} else if (channel.phase == Channel::PHASE_DECAY) {
+		channel.amplitude -= note_def.decay;
+		double level = 127 * static_cast<double>(Channel::ADSR_MINIMUM - channel.amplitude) / Channel::ADSR_MINIMUM;
+		if (level <= note_def.sustain){
+			channel.amplitude = (127 - note_def.sustain) * Channel::ADSR_MINIMUM;
+			channel.phase = Channel::PHASE_SUSTAIN;
+		}
+	} else if (channel.phase == Channel::PHASE_SUSTAIN){
+		if (channel.current_sample > channel.max_samples){
+			channel.phase = Channel::PHASE_RELEASE;
+		}
+	} else if (channel.phase == Channel::PHASE_RELEASE){
+		channel.amplitude -= note_def.release;
+		if (channel.amplitude <= Channel::ADSR_MINIMUM){
+			channel.amplitude = Channel::ADSR_MINIMUM;
+			channel.phase = Channel::PHASE_NONE;
+		}
+	}
+	
+	return sample * static_cast<double>(Channel::ADSR_MINIMUM - channel.amplitude) / Channel::ADSR_MINIMUM;
+}
+
+short SSEQStream::get_sample(Channel& channel){	
 	static int current_noise = 0x7fff;
 	
-	auto& instr = sbnk.instruments[instrument];
+	int note = channel.current_note_event->type;
+	std::size_t index = channel.current_sample;
+	
+	auto& instr = sbnk.instruments[channel.instr];
 	auto& note_def = instr.get_note_def(note);
 	double note_shift;
 	if (instr.f_record == Instrument::F_RECORD_PSG){
@@ -163,6 +211,7 @@ short SSEQStream::get_sample(int instrument, int note, std::size_t index){
 	} else {
 		note_shift = std::pow(2, (note - note_def.note)/12.0);
 	}
+	note_shift *= std::pow(2, static_cast<double>(channel.pitch_bend) * channel.pitch_bend_range / 128.0 / 12.0);
 	
 	if (instr.f_record == Instrument::F_RECORD_PCM ||
 		instr.f_record == Instrument::F_RECORD_RANGE || 

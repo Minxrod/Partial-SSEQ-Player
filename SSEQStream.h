@@ -69,7 +69,9 @@ private:
 	std::vector<sf::Int16> samples1;
 	std::vector<sf::Int16> samples2;
 	
-	short get_sample(int instrument, int note, std::size_t index);
+	short get_sample(Channel& channel);
+	short apply_adsr(Channel& channel, short sample);
+	
 	void process_event(Channel& channel, Event& event);
 	int index_from_offset(int offset);
 	

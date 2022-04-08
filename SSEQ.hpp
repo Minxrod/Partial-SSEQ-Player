@@ -38,6 +38,13 @@ struct Event {
 	std::string info();
 };
 
+struct NoteEvent
+{
+	Event* event;
+	int current_sample;
+	int max_samples;
+};
+
 struct Channel {
 	int id;
 	int offset;
@@ -45,14 +52,39 @@ struct Channel {
 	
 //	void read(char* data);
 	std::string info();
-	
-	int instr = 0;
+
 	int current_index; //event index in SSEQ
 	
-	int current_sample; //current sample (during playback)
-	int max_samples; //length of this event (in samples; during playback)
+	const static int ADSR_MAXIMUM = 0;        //100%
+	const static int ADSR_MINIMUM = -92544;   //0%
+	
+	const static int PHASE_NONE = 0;
+	const static int PHASE_ATTACK = 1;
+	const static int PHASE_DECAY = 2;
+	const static int PHASE_SUSTAIN = 3;
+	const static int PHASE_RELEASE = 4;	
+	
+	// Volume etc.
+	int volume = 128;
+	int pan = 64;
+	
+	// Pitch bending
+	int pitch_bend_range = 1;
+	int pitch_bend = 0;
+	
+	// ADSR related values
+	int amplitude;
+	int phase;
+	
 	int next_process_delay; //how long to wait to start processing again
+
+	int current_sample;
+	int max_samples;
 	Event* current_note_event;
+	std::vector<NoteEvent> note_events;
+	//currently playing instrument
+	int instr = 0;
+
 	
 	std::vector<int> call_stack{};
 };
