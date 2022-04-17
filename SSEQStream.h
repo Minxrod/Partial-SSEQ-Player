@@ -65,12 +65,12 @@ private:
 	SBNK& sbnk;
 	SSEQ& sseq;
 	
-	bool which = false;
-	std::vector<sf::Int16> samples1;
-	std::vector<sf::Int16> samples2;
+	std::vector<sf::Int16> samples;
 	
-	short get_sample(Channel& channel);
-	short apply_adsr(Channel& channel, short sample);
+	std::vector<NoteEvent> note_events;
+	
+	short get_sample(Channel& channel, NoteEvent& note_event);
+	short apply_adsr(Channel& channel, NoteEvent& note, short sample);
 	
 	void process_event(Channel& channel, Event& event);
 	int index_from_offset(int offset);

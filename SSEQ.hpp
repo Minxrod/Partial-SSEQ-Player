@@ -18,11 +18,13 @@ struct Event {
 //		MASTER_VOLUME=0xc2,
 		PITCH_BEND=0xc4,
 		PITCH_BEND_RANGE=0xc5,
+		PRIORITY=0xc6, //1 byte
 		MONO_POLY=0xc7, //1 byte
 		MODULATION_DEPTH=0xca,
 		MODULATION_SPEED=0xcb,
 		MODULATION_TYPE=0xcc,
 		MODULATION_RANGE=0xcd,
+		VOLUME_2=0xd5,
 		TEMPO=0xe1, //2 byte
 		RETURN=0xfd,
 		TRACKS_ENABLED=0xfe,
@@ -38,23 +40,11 @@ struct Event {
 	std::string info();
 };
 
+
+struct Channel;
+
 struct NoteEvent
 {
-	Event* event;
-	int current_sample;
-	int max_samples;
-};
-
-struct Channel {
-	int id;
-	int offset;
-	bool enabled = false;
-	
-//	void read(char* data);
-	std::string info();
-
-	int current_index; //event index in SSEQ
-	
 	const static int ADSR_MAXIMUM = 0;        //100%
 	const static int ADSR_MINIMUM = -92544;   //0%
 	
@@ -63,6 +53,27 @@ struct Channel {
 	const static int PHASE_DECAY = 2;
 	const static int PHASE_SUSTAIN = 3;
 	const static int PHASE_RELEASE = 4;	
+	
+	Event* event = nullptr;
+	int current_sample;
+	int max_samples;
+	
+	int amplitude;
+	int phase;
+	int adsr_update_rate; //in samples / update
+	int adsr_sample;
+	
+	Channel* channel = nullptr;
+};
+
+struct Channel {
+	int id;
+	int offset;
+	bool enabled = false;
+	
+	std::string info();
+	
+	int current_index; //event index in SSEQ
 	
 	// Volume etc.
 	int volume = 128;

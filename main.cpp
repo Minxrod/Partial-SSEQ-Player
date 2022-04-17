@@ -31,8 +31,8 @@ int main(){
 //	for (auto& instr : bank.instruments){
 //		std::cout << instr.info() << std::endl;
 //	}
-	
-//	SWAVStream strm2{swar.swav[150]};
+//	
+//	SWAVStream strm2{swar.swav[279]};
 //	strm2.play();
 //	sf::sleep(sf::seconds(1));
 //	strm2.stop();
@@ -66,8 +66,10 @@ int main(){
 		s.stop();
 	}*/
 	
-	//76: implement D5
-	for (int i = 5; i < 10; ++i){
+	//20: implement 0xd5
+	//23: implement 0xc6
+	//76: implement 0xd5
+	for (int i = 23; i < 30; ++i){
 		SSEQ sseq;
 		sseq.open("test_files/SSEQ_"+std::to_string(i)+".sseq");
 		std::cout << i << ": " << sseq.info() << std::endl;
