@@ -130,6 +130,10 @@ void SSEQ::open(std::string filename){
 			events.emplace_back(event);
 			events.back().value1 = data[i];
 			++i;
+		} else if (event == Event::VOLUME_2){
+			events.emplace_back(event);
+			events.back().value1 = data[i];
+			++i;
 		} else if (event == Event::CALL){
 			events.push_back(Event(event));
 			events.back().value1 = binary_as_u24(&data[i]) + start_offset;

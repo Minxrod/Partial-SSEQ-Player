@@ -63,7 +63,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 //	for (auto& channel : sseq.channels){
 //		added_samples += channel.enabled ? 1 : 0;
 //	}
-	int adsr_update_rate_global = 0;//220 * 240 / tempo;//std::size_t)PLAYBACK_SAMPLE_RATE/22050*2;
+//	int adsr_update_rate_global = 0;//220 * 240 / tempo;//std::size_t)PLAYBACK_SAMPLE_RATE/22050*2;
 	//^I don't know what to do with this
 	
 	for (std::size_t s = offset; s < offset + (unsigned)50000; ++s){
@@ -74,7 +74,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 		for (auto& channel : sseq.channels){
 			if (!channel.enabled)
 				continue;
-			if (!(1<<channel.id & (1<<4 | 0xffff)))
+			if (!(1<<channel.id & (1<<1 | 0xffff)))
 				continue;
 			bool instant_event;
 			channel.next_process_delay--;
@@ -101,12 +101,13 @@ bool SSEQStream::onGetData(Chunk& chunk){
 						if (note.phase == NoteEvent::PHASE_NONE){
 							note.max_samples = duration(tempo, event.value2);
 							note.current_sample = 0;
+							note.phase_sample = 0;
 							note.event = &event;
 							note.phase = NoteEvent::PHASE_ATTACK;
 							note.amplitude = NoteEvent::ADSR_MINIMUM;
 							note.channel = &channel;
 							note.adsr_sample = 0;
-							note.adsr_update_rate = adsr_update_rate_global;
+							note.adsr_update_rate = -1;
 							break;
 						}
 					}
@@ -145,7 +146,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 			
 			for (auto& note : note_events){
 				if (note.phase != NoteEvent::PHASE_NONE && note.channel == &channel){
-					note.current_sample++;
+					note.phase_sample++;
 					
 					short sample = get_sample(channel, note);
 					sample = apply_adsr(channel, note, sample) * (static_cast<double>(channel.volume) / 128);
@@ -180,6 +181,15 @@ bool SSEQStream::onGetData(Chunk& chunk){
 }
 
 short SSEQStream::apply_adsr(Channel& channel, NoteEvent& note, short sample){
+//	if (note.adsr_update_rate == -1 && NoteEvent::PHASE_RELEASE){
+//		auto release = sbnk.instruments[channel.instr].get_note_def(note.event->type).release;
+//		if (release >= 115){
+//			note.adsr_update_rate = 0;
+//		} else {
+//			note.adsr_update_rate = (126 - release) * 2800.0 / release;
+//		}
+//	}
+	
 	note.adsr_sample++;
 	if (note.adsr_sample < note.adsr_update_rate){
 		return sample * static_cast<double>(NoteEvent::ADSR_MINIMUM - note.amplitude) / NoteEvent::ADSR_MINIMUM;
@@ -188,19 +198,22 @@ short SSEQStream::apply_adsr(Channel& channel, NoteEvent& note, short sample){
 	
 	auto& instr = sbnk.instruments[channel.instr];
 	auto& note_def = instr.get_note_def(note.event->type);
+	if (note.phase == NoteEvent::PHASE_DECAY && note_def.decay == 53){
+		note.adsr_update_rate = 4; // weird hack that makes SSEQ_26 sound better
+	}
 	
 	//immediately enter release phase if note has finished
-	if (note.current_sample > note.max_samples && note.phase != NoteEvent::PHASE_RELEASE){
+	if (note.phase_sample > note.max_samples && note.phase != NoteEvent::PHASE_RELEASE){
 		note.phase = NoteEvent::PHASE_RELEASE;
-		std::cout << "Entering R:" << note.current_sample << "," << note.amplitude << " Rr: "<< note_def.release << std::endl;
+//		std::cout << "Entering R:" << note.phase_sample << "," << note.amplitude << " Rr: "<< note_def.release << std::endl;
 	}
-		
+	
 	if (note.phase == NoteEvent::PHASE_ATTACK){
 		note.amplitude = note_def.attack * note.amplitude / 255;
 		if (note.amplitude >= NoteEvent::ADSR_MAXIMUM){
 			note.amplitude = NoteEvent::ADSR_MAXIMUM;
 			note.phase = NoteEvent::PHASE_DECAY;
-			std::cout << "Entering D:" << note.current_sample << "," << note.amplitude << " Dr: "<< note_def.decay << std::endl;
+//			std::cout << "Entering D:" << note.phase_sample << "," << note.amplitude << " Dr: "<< note_def.decay << std::endl;
 		}
 	} else if (note.phase == NoteEvent::PHASE_DECAY) {
 		note.amplitude -= note_def.decay;
@@ -208,7 +221,7 @@ short SSEQStream::apply_adsr(Channel& channel, NoteEvent& note, short sample){
 		if (level <= note_def.sustain){
 			note.amplitude = ((127.0 - note_def.sustain) / 127.0) * NoteEvent::ADSR_MINIMUM;
 			note.phase = NoteEvent::PHASE_SUSTAIN;
-			std::cout << "Entering S:" << note.current_sample << "," << note.amplitude << " Sl: "<< note_def.sustain << std::endl;
+//			std::cout << "Entering S:" << note.phase_sample << "," << note.amplitude << " Sl: "<< note_def.sustain << std::endl;
 		}
 	} else if (note.phase == NoteEvent::PHASE_SUSTAIN){
 
@@ -217,7 +230,7 @@ short SSEQStream::apply_adsr(Channel& channel, NoteEvent& note, short sample){
 		if (note.amplitude <= NoteEvent::ADSR_MINIMUM){
 			note.amplitude = NoteEvent::ADSR_MINIMUM;
 			note.phase = NoteEvent::PHASE_NONE;
-			std::cout << "E:" << note.current_sample << std::endl;
+//			std::cout << "E:" << note.phase_sample << std::endl;
 		}
 	}
 	
@@ -229,7 +242,7 @@ short SSEQStream::get_sample(Channel& channel, NoteEvent& note_event){
 	double current_noise_frame = 0;
 	
 	int note = note_event.event->type;
-	std::size_t index = note_event.current_sample;
+//	std::size_t index = note_event.current_sample;
 	
 	auto& instr = sbnk.instruments[channel.instr];
 	auto& note_def = instr.get_note_def(note);
@@ -246,8 +259,9 @@ short SSEQStream::get_sample(Channel& channel, NoteEvent& note_event){
 		instr.f_record == Instrument::F_RECORD_REGIONAL) {
 		auto& waveform = swar.swav[note_def.swav_no];
 		note_shift *= (static_cast<double>(waveform.sampleRate) / static_cast<double>(PLAYBACK_SAMPLE_RATE));	
+		note_event.current_sample += note_shift;
 		
-		std::size_t actual_index = note_shift * index;
+		std::size_t actual_index = static_cast<std::size_t>(note_event.current_sample);
 		if (actual_index < waveform.samples.size()){
 			return waveform.samples[actual_index];
 		}
@@ -261,7 +275,8 @@ short SSEQStream::get_sample(Channel& channel, NoteEvent& note_event){
 		}
 	} else if (instr.f_record == Instrument::F_RECORD_PSG){
 		note_shift *= 28160.0 / static_cast<double>(PLAYBACK_SAMPLE_RATE);
-		double actual_index = index * note_shift;
+		note_event.current_sample += note_shift * 2;
+		double actual_index = static_cast<std::size_t>(note_event.current_sample);
 		
 		auto psg = [](int index, int cycle){ return (index % 128 < (cycle + 1) * 16) ? -32767.0 : 32767.0; };
 		
@@ -286,7 +301,7 @@ short SSEQStream::get_sample(Channel& channel, NoteEvent& note_event){
 		}
 		return carry ? -32767 : 32767;
 	}
-	return 0;
+	throw std::runtime_error{"f_record invalid type in SSEQStream::get_sample"};
 }
 
 

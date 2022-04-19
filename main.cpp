@@ -69,14 +69,14 @@ int main(){
 	//20: implement 0xd5
 	//23: implement 0xc6
 	//76: implement 0xd5
-	for (int i = 23; i < 30; ++i){
+	for (int i = 2; i < 30; ++i){
 		SSEQ sseq;
 		sseq.open("test_files/SSEQ_"+std::to_string(i)+".sseq");
 		std::cout << i << ": " << sseq.info() << std::endl;
 		
 		SSEQStream seqstrm{swar, bank, sseq};
 		seqstrm.play();
-		sf::sleep(sf::seconds(30));
+		sf::sleep(sf::seconds(60));
 		seqstrm.stop();
 	}
 //	std::cout << sseq.info() << std::endl;

@@ -55,7 +55,8 @@ struct NoteEvent
 	const static int PHASE_RELEASE = 4;	
 	
 	Event* event = nullptr;
-	int current_sample;
+	double current_sample; //increments by variable amount depending on pitch
+	int phase_sample; //increments by one each sample 
 	int max_samples;
 	
 	int amplitude;
