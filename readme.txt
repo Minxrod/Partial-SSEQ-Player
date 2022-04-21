@@ -16,10 +16,11 @@ I do not want to lose the current progress on this if my computer breaks or some
 *Converting SWAR to waveforms
 *Reading SBNK
 *Partial SSEQ reading/playing
+*Samples except 28 are pretty good
 
 -- Known issues:
 *Code is messy
-*ADSR envelope is not correct
+*ADSR envelope is not completely correct
 *Various SSEQ events are currently ignored or unimplemented
  *Modulation, "Volume 2", priority specifically are known to be needed
 *Makefile could use some work
