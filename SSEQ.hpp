@@ -33,8 +33,8 @@ struct Event {
 	Event(unsigned char t):type{t}{}
 	
 	unsigned char type;
-	int value1;
-	int value2;
+	int value1 = 0;
+	int value2 = 0;
 	
 	void read(char* data);
 	std::string info();

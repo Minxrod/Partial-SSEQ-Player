@@ -116,7 +116,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 					channel.current_index = channel.call_stack.back()+1;
 					channel.call_stack.pop_back();
 				} else if (event.type <= Event::NOTE_HIGH) {
-					NoteEvent* note = nullptr;
+					NoteEvent* note = &note_events[channel.id]; //when all else fails, play on note corresponding to channel number
 					for (auto& note_event : note_events){
 						//find first note either not in use or in release phase in same channel
 						if (note_event.channel == &channel && note_event.phase == NoteEvent::PHASE_RELEASE) {
@@ -129,6 +129,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 							break;
 						}
 					}
+//					note = note_events[channel.id];
 					
 					// Set the note information
 					note->max_samples = duration(tempo, event.value2);
@@ -157,6 +158,9 @@ bool SSEQStream::onGetData(Chunk& chunk){
 					channel.volume = event.value1;
 				} else if (event.type == Event::PAN){
 					channel.pan = event.value1;
+				} else if (event.type == Event::VOLUME_2){ //Also called "EXPRESSION" according to GBAtek
+					// what does this do??
+					std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
 				} else {
 					instant_event = false;
 					// Displays unimplemented events
@@ -228,7 +232,7 @@ short SSEQStream::apply_adsr(Channel& channel, NoteEvent& note, short sample){
 	//immediately enter release phase if note has finished
 	if (note.phase_sample > note.max_samples && note.phase != NoteEvent::PHASE_RELEASE){
 		note.phase = NoteEvent::PHASE_RELEASE;
-		note.adsr_update_rate = DECAY_UPDATE_LUT[127-note_def.decay]; //sets release rate more correctly
+		note.adsr_update_rate = DECAY_UPDATE_LUT[127-note_def.release]; //sets release rate more correctly
 //		std::cout << "Entering R:" << note.phase_sample << "," << note.amplitude << " Rr: "<< note_def.release << std::endl;
 	}
 	
