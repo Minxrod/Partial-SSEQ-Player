@@ -7,6 +7,25 @@
 #include <algorithm>
 #include <cmath>
 
+// will be used for adsr_update_rate when in decay or release mode
+const int DECAY_UPDATE_LUT[]{
+	1,1,3,5,7,10,12,14,
+	16,19,21,23,25,27,29,31,
+	33,35,38,39,40,42,44,46,
+	47,49,51,52,53,55,56,58,
+	59,60,61,62,64,65,66,67,
+	68,69,69,71,72,72,74,74,
+	74,75,75,76,77,77,78,78,
+	78,78,79,79,79,79,80,79,
+	80,79,80,80,80,80,79,79,
+	79,78,78,78,77,75,76,75,
+	77,77,75,75,76,75,77,76,
+	77,76,77,76,77,76,77,77,
+	80,80,80,81,80,81,81,81,
+	80,81,81,81,81,81,81,82,
+	82,82,82,83,83,83,84,84,
+	85,86,87,88,91,95,106,159
+};
 
 int SSEQStream::index_from_offset(int offset){
 	return std::distance(sseq.event_location.begin(), std::find(sseq.event_location.begin(), sseq.event_location.end(), offset));
@@ -86,7 +105,8 @@ bool SSEQStream::onGetData(Chunk& chunk){
 				auto& event = sseq.events.at(channel.current_index);
 				if (event.type == Event::BANK){
 					channel.instr = (static_cast<unsigned char>(event.value1) % 128) + 256 * event.value2;
-					std::cout << channel.id << " " << event.value1 << " " << event.value2 << std::endl;
+//					std::cout << channel.id << " " << event.value1 << " " << event.value2 << std::endl;
+					std::cout << sbnk.instruments[channel.instr].info() << std::endl;
 				} else if (event.type == Event::JUMP) {
 					channel.current_index = index_from_offset(event.value1);
 				} else if (event.type == Event::CALL) {
@@ -96,21 +116,31 @@ bool SSEQStream::onGetData(Chunk& chunk){
 					channel.current_index = channel.call_stack.back()+1;
 					channel.call_stack.pop_back();
 				} else if (event.type <= Event::NOTE_HIGH) {
-					for (auto& note : note_events){
-						//find first note not in use
-						if (note.phase == NoteEvent::PHASE_NONE){
-							note.max_samples = duration(tempo, event.value2);
-							note.current_sample = 0;
-							note.phase_sample = 0;
-							note.event = &event;
-							note.phase = NoteEvent::PHASE_ATTACK;
-							note.amplitude = NoteEvent::ADSR_MINIMUM;
-							note.channel = &channel;
-							note.adsr_sample = 0;
-							note.adsr_update_rate = -1;
+					NoteEvent* note = nullptr;
+					for (auto& note_event : note_events){
+						//find first note either not in use or in release phase in same channel
+						if (note_event.channel == &channel && note_event.phase == NoteEvent::PHASE_RELEASE) {
+							// Note owned by channel, but can be refreshed
+							note = &note_event;
+							break;
+						} else if (note_event.phase == NoteEvent::PHASE_NONE){
+							// Find note not in use
+							note = &note_event;
 							break;
 						}
 					}
+					
+					// Set the note information
+					note->max_samples = duration(tempo, event.value2);
+					note->current_sample = 0;
+					note->phase_sample = 0;
+					note->event = &event;
+					note->phase = NoteEvent::PHASE_ATTACK;
+					note->amplitude = NoteEvent::ADSR_MINIMUM;
+					note->channel = &channel;
+					note->adsr_sample = 1;
+					note->adsr_update_rate = -1;
+					
 				} else if (event.type == Event::REST) {
 					instant_event = false;
 					channel.next_process_delay = duration(tempo, event.value1);
@@ -181,30 +211,24 @@ bool SSEQStream::onGetData(Chunk& chunk){
 }
 
 short SSEQStream::apply_adsr(Channel& channel, NoteEvent& note, short sample){
-//	if (note.adsr_update_rate == -1 && NoteEvent::PHASE_RELEASE){
-//		auto release = sbnk.instruments[channel.instr].get_note_def(note.event->type).release;
-//		if (release >= 115){
-//			note.adsr_update_rate = 0;
-//		} else {
-//			note.adsr_update_rate = (126 - release) * 2800.0 / release;
-//		}
-//	}
-	
 	note.adsr_sample++;
 	if (note.adsr_sample < note.adsr_update_rate){
-		return sample * static_cast<double>(NoteEvent::ADSR_MINIMUM - note.amplitude) / NoteEvent::ADSR_MINIMUM;
+		double adsr_amplitude = static_cast<double>(NoteEvent::ADSR_MINIMUM - note.amplitude) / NoteEvent::ADSR_MINIMUM * 50.0;
+		//Note that the ADSR envelope decay is linear in decibels, not just waveform amplitude
+		// adsr_amplitude is in range [0,50]=[quiet,loud]. Amplitude multiplier should be in [0,1], but with nonlinear scale 
+		double modifier = std::pow(10, adsr_amplitude/10.0 - 5.0);
+		
+		return sample * modifier;
 	}
-	note.adsr_sample = 0;
+	note.adsr_sample = 1; //starts at one because LUT starts from one
 	
 	auto& instr = sbnk.instruments[channel.instr];
 	auto& note_def = instr.get_note_def(note.event->type);
-	if (note.phase == NoteEvent::PHASE_DECAY && note_def.decay == 53){
-		note.adsr_update_rate = 4; // weird hack that makes SSEQ_26 sound better
-	}
 	
 	//immediately enter release phase if note has finished
 	if (note.phase_sample > note.max_samples && note.phase != NoteEvent::PHASE_RELEASE){
 		note.phase = NoteEvent::PHASE_RELEASE;
+		note.adsr_update_rate = DECAY_UPDATE_LUT[127-note_def.decay]; //sets release rate more correctly
 //		std::cout << "Entering R:" << note.phase_sample << "," << note.amplitude << " Rr: "<< note_def.release << std::endl;
 	}
 	
@@ -213,6 +237,7 @@ short SSEQStream::apply_adsr(Channel& channel, NoteEvent& note, short sample){
 		if (note.amplitude >= NoteEvent::ADSR_MAXIMUM){
 			note.amplitude = NoteEvent::ADSR_MAXIMUM;
 			note.phase = NoteEvent::PHASE_DECAY;
+			note.adsr_update_rate = DECAY_UPDATE_LUT[127-note_def.decay]; //sets decay rate more correctly
 //			std::cout << "Entering D:" << note.phase_sample << "," << note.amplitude << " Dr: "<< note_def.decay << std::endl;
 		}
 	} else if (note.phase == NoteEvent::PHASE_DECAY) {
@@ -224,7 +249,7 @@ short SSEQStream::apply_adsr(Channel& channel, NoteEvent& note, short sample){
 //			std::cout << "Entering S:" << note.phase_sample << "," << note.amplitude << " Sl: "<< note_def.sustain << std::endl;
 		}
 	} else if (note.phase == NoteEvent::PHASE_SUSTAIN){
-
+		// do nothing, just hold current volume
 	} else if (note.phase == NoteEvent::PHASE_RELEASE){
 		note.amplitude -= note_def.release;
 		if (note.amplitude <= NoteEvent::ADSR_MINIMUM){
@@ -234,7 +259,12 @@ short SSEQStream::apply_adsr(Channel& channel, NoteEvent& note, short sample){
 		}
 	}
 	
-	return sample * static_cast<double>(NoteEvent::ADSR_MINIMUM - note.amplitude) / NoteEvent::ADSR_MINIMUM;
+	double adsr_amplitude = static_cast<double>(NoteEvent::ADSR_MINIMUM - note.amplitude) / NoteEvent::ADSR_MINIMUM * 50.0;
+	//Note that the ADSR envelope decay is linear in decibels, not just waveform amplitude
+	// adsr_amplitude is in range [0,50]=[quiet,loud]. Amplitude multiplier should be in [0,1], but with nonlinear scale 
+	double modifier = std::pow(10, adsr_amplitude/10.0 - 5.0);
+	
+	return sample * modifier;
 }
 
 short SSEQStream::get_sample(Channel& channel, NoteEvent& note_event){	
