@@ -2,15 +2,14 @@ SSEQPlayer - an attempt at creating a player for a subset of the SSEQ format.
 
 -- What it is:
 This is a sub-project for the PTC Emulator, aiming to be able to parse and playback SSEQ files. This project does not aim to handle the entire format currently.
-As it is currently, this is heavily WIP and not ready to be included in the main project, though many of the songs and sounds are recognizable already.
+As it is currently, this is a WIP, but a majority of BGM and SFX sound correct or at least pretty close.
 
 -- How to use it:
-Don't.
-If you really want to for some reason, you can get the SWAR, SBNK, and SSEQ files using sdatxtract, and modify main.cpp to test some of the current functions.
+You can get the SWAR, SBNK, and SSEQ files using sdatxtract, and modify main.cpp to test some of the current functions.
 Note that building requires SFML, and this has only been tested on Linux currently.
 
--- Why I am uploading this now:
-I do not want to lose the current progress on this if my computer breaks or something.
+To compile, you should just be able to do this.
+$ make
 
 -- Current functionality:
 *Converting SWAR to waveforms
@@ -23,7 +22,7 @@ I do not want to lose the current progress on this if my computer breaks or some
 *ADSR envelope is not completely correct
 *Various SSEQ events are currently ignored or unimplemented
  *Modulation, "Volume 2", priority specifically are known to be needed
-*Makefile could use some work
+*Makefile could use some more work
 
 -- Cool resources:
 *GBATek - https://www.problemkaputt.de/gbatek.htm
