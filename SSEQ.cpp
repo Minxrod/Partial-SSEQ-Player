@@ -33,7 +33,7 @@ void SSEQ::open(std::string filename){
 	data.resize(2*1024*1024);
 	is.read(data.data(), 2*1024*1024);
 	
-	channels.resize(16);
+//	channels.resize(16);
 	
 	int start_offset = binary_as_int(&data[START_OFFSET]);
 	int filesize = 0x10 + binary_as_int(&data[SIZE]);
@@ -46,24 +46,21 @@ void SSEQ::open(std::string filename){
 		
 		if (event == Event::TRACKS_ENABLED){
 			int tracks = binary_as_ushort(&data[i]);
-//			std::cout << "track bitfield = " << tracks << std::endl;
-			for (int b = 0; b < 16; ++b){
-				if (tracks & (1<<b)){
-					channels[b].id = b;
+//			for (int b = 0; b < 16; ++b){
+//				if (tracks & (1<<b)){
+//					channels[b].id = b;
 //					channels[b].enabled = true; //channel 0 is not defined well??
-				}
-			}
-			i+=2; //
+//				}
+//			}
+			i+=2;
 			events.emplace_back(event);
 			events.back().value1 = tracks;
 		} else if (event == Event::DEFINE_TRACK){
 			int track = data[i];
-//			++i;
 			int offset = start_offset + binary_as_u24(&data[i+1]);
-			//+ variable_length(i);
 			
-			channels[track].offset = offset;
-			channels[track].enabled = true;
+//			channels[track].offset = offset;
+//			channels[track].enabled = true;
 			i+=4;
 			events.emplace_back(event);
 			events.back().value1 = track;
@@ -156,23 +153,14 @@ void SSEQ::open(std::string filename){
 
 std::string SSEQ::info(){
 	std::string info{};
-	for (auto& channel : channels){
-		if (channel.enabled){
-			info += channel.info();
-		}
-	}
+//	for (auto& channel : channels){
+//		if (channel.enabled){
+//			info += channel.info();
+//		}
+//	}
 	for (std::size_t i = 0; i < events.size(); ++i){
 		info += " " + as_hex(event_location[i]) + " " + events[i].info();
 	}
-	return info;
-}
-
-std::string Channel::info(){
-	std::string info{};
-	info += "Channel " + std::to_string(id) + ": (Offset: " + as_hex(offset) + ")\n"; 
-/*	for (auto& event : events){
-		info += event.info();
-	}*/
 	return info;
 }
 
@@ -205,6 +193,8 @@ std::string Event::info(){
 		info += " End Track";
 	} else if (type == Event::TEMPO){
 		info += " Tempo [BPM:" + std::to_string(value1)+ "]";
+	} else if (type == Event::DEFINE_TRACK){
+		info += " Define track [Channel:" + std::to_string(value1) + " Offset:" + as_hex(value2) + "]";
 	} else {
 		info += " Type " + as_hex(type);
 		info += " Data " + as_hex(value1) + ", " + as_hex(value2);

@@ -67,45 +67,12 @@ struct NoteEvent
 	Channel* channel = nullptr;
 };
 
-struct Channel {
-	int id;
-	int offset;
-	bool enabled = false;
-	
-	std::string info();
-	
-	int current_index; //event index in SSEQ
-	
-	// Volume etc.
-	int volume = 128;
-	int pan = 64;
-	
-	// Pitch bending
-	int pitch_bend_range = 1;
-	int pitch_bend = 0;
-	
-	// ADSR related values
-	int amplitude;
-	int phase;
-	
-	int next_process_delay; //how long to wait to start processing again
-
-	int current_sample;
-	int max_samples;
-	Event* current_note_event;
-	std::vector<NoteEvent> note_events;
-	//currently playing instrument
-	int instr = 0;
-
-	
-	std::vector<int> call_stack{};
-};
 
 struct SSEQ {
 	const int SIZE = 0x14;
 	const int START_OFFSET = 0x18;
 	
-	std::vector<Channel> channels;
+//	std::vector<Channel> channels;
 	std::vector<char> data;
 	std::vector<int> event_location; //location in data
 	std::vector<Event> events; //converted from data

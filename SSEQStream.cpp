@@ -7,6 +7,15 @@
 #include <algorithm>
 #include <cmath>
 
+std::string Channel::info(){
+	std::string info{};
+	info += "Channel " + std::string(enabled ? "[ENABLED] " : "[DISABLED] ") + std::to_string(id) + ": (Offset: " + as_hex(offset) + ")\n"; 
+/*	for (auto& event : events){
+		info += event.info();
+	}*/
+	return info;
+}
+
 // will be used for adsr_update_rate when in decay or release mode
 const int DECAY_UPDATE_LUT[]{
 	1,1,3,5,7,10,12,14,
@@ -32,20 +41,21 @@ int SSEQStream::index_from_offset(int offset){
 }
 
 SSEQStream::SSEQStream(SWAR& wave, SBNK& bank, SSEQ& sequence) : swar(wave), sbnk(bank), sseq(sequence){
-	samples.resize(50000*2); //arbitrary
-	note_events.resize(16);
-	initialize(2, PLAYBACK_SAMPLE_RATE);
-	tempo = sseq.tempo;
+	samples.resize(BUFFER_SIZE * SFML_CHANNEL_COUNT); //arbitrary
+	note_events.resize(NDS_CHANNEL_COUNT);
+	initialize(SFML_CHANNEL_COUNT, PLAYBACK_SAMPLE_RATE);
+//	tempo = sseq.tempo;
 	
-	for (auto& c : sseq.channels){
-		c.current_index = index_from_offset(c.offset);
+	for (auto& c : channels){
+//		c.current_index = index_from_offset(c.offset);
 		c.instr = 0;
-		std::cout << c.enabled << " " << c.id << " -> " << c.current_index << std::endl;
+		// std::cout << c.enabled << " " << c.id << " -> " << c.current_index << std::endl;
 		c.next_process_delay = 0;
 	}
 	//enable channel zero
-	sseq.channels[0].current_index = 0;
-	sseq.channels[0].enabled = true; //needed for SSEQ_5
+	channels.resize(NDS_CHANNEL_COUNT);
+	channels[0].current_index = 0;
+	channels[0].enabled = true; //needed for SSEQ_5
 }
 
 //returns duration in terms of samplerate, not ticks
@@ -74,23 +84,23 @@ short calculate_sample(int sample, int velocity){
 //}
 
 bool SSEQStream::onGetData(Chunk& chunk){
-	chunk.sampleCount = 50000*2;
+	chunk.sampleCount = BUFFER_SIZE*SFML_CHANNEL_COUNT;
 	
 	//auto& samples = samples;
 	
-	int added_samples = 16;
+	int added_samples = NDS_CHANNEL_COUNT;
 //	for (auto& channel : sseq.channels){
 //		added_samples += channel.enabled ? 1 : 0;
 //	}
 //	int adsr_update_rate_global = 0;//220 * 240 / tempo;//std::size_t)PLAYBACK_SAMPLE_RATE/22050*2;
 	//^I don't know what to do with this
 	
-	for (std::size_t s = offset; s < offset + (unsigned)50000; ++s){
+	for (std::size_t s = offset; s < offset + (unsigned)BUFFER_SIZE; ++s){
 		int partial_sample = 0;
 		int left_sample = 0;
 		int right_sample = 0;
 //		samples[s-offset] = 0; //Clear before next iteration
-		for (auto& channel : sseq.channels){
+		for (auto& channel : channels){
 			if (!channel.enabled)
 				continue;
 			if (!(1<<channel.id & (1<<1 | 0xffff)))
@@ -106,7 +116,23 @@ bool SSEQStream::onGetData(Chunk& chunk){
 				if (event.type == Event::BANK){
 					channel.instr = (static_cast<unsigned char>(event.value1) % 128) + 256 * event.value2;
 //					std::cout << channel.id << " " << event.value1 << " " << event.value2 << std::endl;
-					std::cout << sbnk.instruments[channel.instr].info() << std::endl;
+					//std::cout << sbnk.instruments[channel.instr].info() << std::endl;
+				} else if (event.type == Event::TRACKS_ENABLED) {
+					int tracks = event.value1;
+					for (int b = 0; b < 16; ++b){
+						channels[b].id = b;
+						if (tracks & (1<<b)){
+							channels[b].enabled = true; //channel 0 is not defined well??
+						}
+						std::cout << channels[b].info();
+					}
+				} else if (event.type == Event::DEFINE_TRACK){
+					int track = event.value1;
+					int offset = event.value2;
+					
+					channels[track].offset = offset;
+					channels[track].current_index = index_from_offset(offset);
+					channels[track].enabled = true;
 				} else if (event.type == Event::JUMP) {
 					channel.current_index = index_from_offset(event.value1);
 				} else if (event.type == Event::CALL) {
@@ -192,22 +218,22 @@ bool SSEQStream::onGetData(Chunk& chunk){
 				}
 			}
 		}
-		samples[2*(s-offset)] = 0;
-		samples[2*(s-offset)+1] = 0;
+		samples[SFML_CHANNEL_COUNT*(s-offset)] = 0;
+		samples[SFML_CHANNEL_COUNT*(s-offset)+1] = 0;
 		if (left_sample | right_sample){
 			//doing this based on https://dsp.stackexchange.com/questions/3581/algorithms-to-mix-audio-signals-without-clipping
 			//It seems to work well enough
-			samples[2*(s-offset)] = left_sample/added_samples;
-			samples[2*(s-offset)+1] = right_sample/added_samples;
+			samples[SFML_CHANNEL_COUNT*(s-offset)] = left_sample/added_samples;
+			samples[SFML_CHANNEL_COUNT*(s-offset)+1] = right_sample/added_samples;
 		}
 	}
-	std::cout << "EOM" << std::endl;
+//	std::cout << "EOM" << std::endl;
 	
 	chunk.samples = samples.data();
-	offset += 50000;
+	offset += BUFFER_SIZE;
 	
 	// only continue if channels are still going
-	for (auto& channel : sseq.channels){
+	for (auto& channel : channels){
 		if (channel.enabled)
 			return true;
 	}
@@ -345,7 +371,7 @@ void SSEQStream::onSeek(sf::Time){}
 /*
  * Random testing stuff below!
  */
-
+/*
 void SampleStream::init(std::vector<short>* dat, unsigned int sampleRate, unsigned int loopStart){
 	initialize((unsigned int)1, (unsigned int)sampleRate);
 	d = dat;
@@ -410,3 +436,4 @@ bool SampleStream::onGetData(Chunk&){
 void InstrumentStream::onSeek(sf::Time){}
 void SWAVStream::onSeek(sf::Time){}
 void SampleStream::onSeek(sf::Time){}
+*/
