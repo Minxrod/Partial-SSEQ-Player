@@ -37,25 +37,30 @@ const int DECAY_UPDATE_LUT[]{
 };
 
 int SSEQStream::index_from_offset(int offset){
-	return std::distance(sseq.event_location.begin(), std::find(sseq.event_location.begin(), sseq.event_location.end(), offset));
+	return std::distance(sseq->event_location.begin(), std::find(sseq->event_location.begin(), sseq->event_location.end(), offset));
 }
 
-SSEQStream::SSEQStream(SWAR& wave, SBNK& bank, SSEQ& sequence) : swar(wave), sbnk(bank), sseq(sequence){
-	samples.resize(BUFFER_SIZE * SFML_CHANNEL_COUNT); //arbitrary
-	note_events.resize(NDS_CHANNEL_COUNT);
+SSEQStream::SSEQStream(SWAR& wave, SBNK& bank) : swar(wave), sbnk(bank), sseq(nullptr){
+	samples.resize(BUFFER_SIZE * SFML_CHANNEL_COUNT);
 	initialize(SFML_CHANNEL_COUNT, PLAYBACK_SAMPLE_RATE);
-//	tempo = sseq.tempo;
 	
-	for (auto& c : channels){
-//		c.current_index = index_from_offset(c.offset);
-		c.instr = 0;
-		// std::cout << c.enabled << " " << c.id << " -> " << c.current_index << std::endl;
-		c.next_process_delay = 0;
-	}
-	//enable channel zero
-	channels.resize(NDS_CHANNEL_COUNT);
+	reset();
+}
+
+// disables playback and reverts state of stream
+void SSEQStream::reset(){
+	stop();
+	channels = std::vector<Channel>(NDS_CHANNEL_COUNT);
+	// channel 0 is the default (and often initializes other channels)
 	channels[0].current_index = 0;
-	channels[0].enabled = true; //needed for SSEQ_5
+	channels[0].enabled = true;
+	
+	note_events = std::vector<NoteEvent>(NDS_CHANNEL_COUNT);
+}
+
+void SSEQStream::set_sseq(SSEQ* sequence){
+	reset();
+	sseq = sequence;
 }
 
 //returns duration in terms of samplerate, not ticks
@@ -112,7 +117,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 				if (channel.next_process_delay > 0)
 					break;
 					
-				auto& event = sseq.events.at(channel.current_index);
+				auto& event = sseq->events.at(channel.current_index);
 				if (event.type == Event::BANK){
 					channel.instr = (static_cast<unsigned char>(event.value1) % 128) + 256 * event.value2;
 //					std::cout << channel.id << " " << event.value1 << " " << event.value2 << std::endl;
@@ -124,7 +129,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 						if (tracks & (1<<b)){
 							channels[b].enabled = true; //channel 0 is not defined well??
 						}
-						std::cout << channels[b].info();
+//						std::cout << channels[b].info();
 					}
 				} else if (event.type == Event::DEFINE_TRACK){
 					int track = event.value1;
@@ -186,11 +191,11 @@ bool SSEQStream::onGetData(Chunk& chunk){
 					channel.pan = event.value1;
 				} else if (event.type == Event::VOLUME_2){ //Also called "EXPRESSION" according to GBAtek
 					// what does this do??
-					std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
+//					std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
 				} else {
 					instant_event = false;
 					// Displays unimplemented events
-					std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
+//					std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
 				}
 				if (event.type != Event::JUMP && event.type != Event::CALL && event.type != Event::RETURN) {
 					channel.current_index++;
