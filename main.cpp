@@ -72,7 +72,8 @@ int main(){
 	SSEQStream seqstrm{swar, bank};
 	for (int i = 2; i < 30; ++i){
 		SSEQ sseq;
-		sseq.open("test_files/SSEQ_"+std::to_string(i)+".sseq");
+//		sseq.open("test_files/SSEQ_"+std::to_string(i)+".sseq");
+		sseq.mml("V100P96O2T180CDN64:1REF8G16A32B<C");
 		std::cout << i << ": " << sseq.info() << std::endl;
 		
 		seqstrm.reset();

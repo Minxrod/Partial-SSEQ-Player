@@ -7,6 +7,19 @@
 
 #include <fstream>
 #include <iostream>
+#include <algorithm>
+#include <numeric>
+
+const unsigned char 
+	Event::REST,
+	Event::BANK,
+	Event::ENABLED_TRACKS,
+	Event::DEFINE_TRACK,
+	Event::TEMPO,
+	Event::PAN,
+	Event::VOLUME,
+	Event::TRACKS_ENABLED,
+	Event::END_OF_TRACK;
 
 // A variable length parameter. To read it, read a byte, binary and it 
 // with 0x7F, and if binary anding the original value by 0x80 is 1, shift 
@@ -149,6 +162,139 @@ void SSEQ::open(std::string filename){
 			break; //early exit for unknown type
 		}
 	}
+}
+
+bool is_digit(char character){
+	return '0' <= character && character <= '9';
+}
+
+// Read one digit.
+int read_digit(std::string data, int& index){
+	int digit = data[index] - '0';
+	index++;
+	return digit;
+}
+
+// Reads a number of variable length (1-3 digits)
+int read_number(std::string data, int& index){
+	int old_index = index;
+	while (is_digit(data[index])){
+		index++;
+	}
+	return std::stoi(data.substr(old_index, index-old_index));
+}
+
+void SSEQ::mml(std::string mml){
+	int index = 0;
+	int channel = 0;
+	int octave = 4; //default
+	int length = 4;
+	int velocity = 127;
+	const std::string NOTES = "CCDDEFFGGAAB";
+	const std::string SEMITONE = "-#+"; 
+	std::vector<Event> channel_defines{};
+	std::vector<std::vector<Event>> channels{8, std::vector<Event>{}};
+	
+	while (index < (int)mml.length()){
+		std::string cmd = std::string{mml[index]};
+		index++;
+		
+		if (cmd == ":"){
+			if (channel_defines.empty()){
+				channel_defines.emplace_back(Event::TRACKS_ENABLED);
+				channel_defines.back().value1 = 0x01;
+			}
+			//Channel select
+			channel = read_digit(mml, index);
+			channel_defines[0].value1 |= 1<<channel;
+			
+			channel_defines.emplace_back(Event::DEFINE_TRACK);
+			channel_defines.back().value1 = channel;
+			channel_defines.back().value2 = 0;
+			
+			length = 4;
+			velocity = 127;
+			octave = 4;
+		} else if (cmd == "T"){
+			int tempo = read_number(mml, index);
+			
+			channels[channel].emplace_back(Event::TEMPO);
+			channels[channel].back().value1 = tempo;
+		} else if (cmd == "L"){
+			length = read_number(mml, index);
+			// this is not an event, but defines the length value of future note events
+		} else if (std::string::npos != NOTES.find(cmd)) {
+			int note = octave * 12 + NOTES.find(cmd);
+			if (index < (int)mml.length() && SEMITONE.find(mml[index]) != std::string::npos){
+				int accidental = mml[index];
+				index++;
+				note += accidental == '-' ? -1 : 1;
+			}
+			int note_length = length;
+			if (is_digit(mml[index])){
+				note_length = read_number(mml, index);
+			}
+			//TODO: Add check for dots (ex. "C4D2.C4D2.")
+			
+			channels[channel].emplace_back(note);
+			channels[channel].back().value1 = velocity;
+			channels[channel].back().value2 = 192 / note_length;
+			channels[channel].emplace_back(Event::REST);
+			channels[channel].back().value1 = 192 / note_length;
+		} else if (cmd == "<"){
+			octave++;
+		} else if (cmd == ">"){
+			octave--;
+		} else if (cmd == "R"){
+			int note_length = length;
+			if (is_digit(mml[index])){
+				note_length = read_number(mml, index);
+			}
+			
+			channels[channel].emplace_back(Event::REST);
+			channels[channel].back().value1 = 192 / note_length;
+		} else if (cmd == "N"){
+			int note = read_number(mml, index);
+			
+			channels[channel].emplace_back(note);
+			channels[channel].back().value1 = velocity;
+			channels[channel].back().value2 = 192 / length;
+			channels[channel].emplace_back(Event::REST);
+			channels[channel].back().value1 = 192 / length;
+		} else if (cmd == "O"){
+			octave = read_digit(mml, index);
+		} else if (cmd == "P"){
+			int pan = read_number(mml, index);
+			
+			channels[channel].emplace_back(Event::PAN);
+			channels[channel].back().value1 = pan;
+		} else if (cmd == "V"){
+			velocity = read_number(mml, index);
+		}
+	}
+	
+//	events.resize(std::accumulate(channels.begin(), channels.end(), channel_defines.size(), [](auto& a, auto& b){ return b.size() + a;}));
+	std::copy(channel_defines.begin(), channel_defines.end(), std::back_inserter(events));
+	
+	for (int i = 0; i < 8; ++i){
+		auto& c = channels[i];
+		if (!c.empty()){
+			int offset = events.size();
+			int j = 1;
+			while (i != events[j].value1){ // Assumes DEFINE_TRACK exists
+				j++;
+			}
+			events[j].value2 = offset;
+			
+			std::copy(c.begin(), c.end(), std::back_inserter(events));
+			events.emplace_back(Event::END_OF_TRACK);
+		}
+	}
+	// locations for MML can just be indexes as there is no SSEQ file defined with fixed offsets
+	event_location.resize(events.size());
+	std::iota(event_location.begin(), event_location.end(), 0);
+	
+	std::cout << info();
 }
 
 std::string SSEQ::info(){

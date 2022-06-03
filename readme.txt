@@ -1,7 +1,7 @@
-SSEQPlayer - an attempt at creating a player for a subset of the SSEQ format.
+SSEQPlayer - an attempt at creating a player for a subset of the SSEQ format, intended for use within the PTC-EmukII project.
 
 -- What it is:
-This is a sub-project for the PTC Emulator, aiming to be able to parse and playback SSEQ files. This project does not aim to handle the entire format currently.
+This is a sub-project for the PTC Emulator, aiming to be able to parse and playback SSEQ files, as well as MML formatted music. This project does not aim to handle the entire format currently - only the instructions required for PTC SSEQ and MML format are planned to be implemented.
 As it is currently, this is a WIP, but a majority of BGM and SFX sound correct or at least pretty close.
 
 -- How to use it:
@@ -16,6 +16,7 @@ $ make
 *Reading SBNK
 *Partial SSEQ reading/playing
 *Samples except 28 are pretty good
+*Limited MML conversion
 
 -- Known issues:
 *Code is messy

@@ -78,6 +78,7 @@ struct SSEQ {
 	std::vector<Event> events; //converted from data
 	
 	void open(std::string filename);
+	void mml(std::string mml_data);
 	std::string info();
 	
 	int tempo; // processed during initial events
