@@ -3,6 +3,16 @@
 #include <vector>
 #include <string>
 
+/**
+ * Contains one SSEQ event.
+ * 
+ * A SSEQ event has a type, and [0-2] arguments.
+ * These arguments vary in meaning by the event type. See
+ * https://gota7.github.io/NitroStudio2/specs/sequence.html
+ * or https://www.problemkaputt.de/gbatek.htm for some explanation.
+ * Note that these sources disagree on some things, so I've used whatever
+ * seemed to be most accurate based on my understanding.
+ */
 struct Event {
 	const static unsigned char 
 		NOTE_LOW=0,
@@ -30,16 +40,20 @@ struct Event {
 		TRACKS_ENABLED=0xfe,
 		END_OF_TRACK=0xff;
 	
-	Event(unsigned char t):type{t}{}
+//	Event(unsigned char t):type{t}{}
+	Event(unsigned char t, int v1 = 0, int v2 = 0):type{t},value1{v1},value2{v2}{}
 	
+	// The type of the event. See the constants above for specific types that
+	// have been implemented or should be eventually.
 	unsigned char type;
+	// First argument for the event.
 	int value1 = 0;
+	// Second argument for the event.
 	int value2 = 0;
 	
 	void read(char* data);
 	std::string info();
 };
-
 
 struct Channel;
 
@@ -72,8 +86,6 @@ struct SSEQ {
 	const static int SIZE = 0x14;
 	const static int START_OFFSET = 0x18;
 	
-//	std::vector<Channel> channels;
-	std::vector<char> data;
 	std::vector<int> event_location; //location in data
 	std::vector<Event> events; //converted from data
 	
@@ -86,5 +98,5 @@ struct SSEQ {
 	SSEQ& operator=(const SSEQ&) = default;
 	
 private:
-	int variable_length(int& i);
+	int variable_length(std::vector<char>& data, int& i);
 };

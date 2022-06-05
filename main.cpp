@@ -70,17 +70,17 @@ int main(){
 	//23: implement 0xc6
 	//76: implement 0xd5
 	SSEQStream seqstrm{swar, bank};
-	for (int i = 2; i < 30; ++i){
-		SSEQ sseq;
+	for (int i = 0; i < 30; ++i){
+		SSEQ sseq{};
 //		sseq.open("test_files/SSEQ_"+std::to_string(i)+".sseq");
-		sseq.mml("V100P96O2T180CDN64:1REF8G16A32B<C");
+		sseq.mml(":0@V100@4O4CDEFG");
 		std::cout << i << ": " << sseq.info() << std::endl;
 		
 		seqstrm.reset();
 		seqstrm.set_sseq(&sseq);
 		seqstrm.play();
 		sf::sleep(sf::seconds(10));
-//		seqstrm.stop();
+		seqstrm.stop(); //needed here (probably) because sseq gets destroyed after this point
 	}
 //	std::cout << sseq.info() << std::endl;
 	

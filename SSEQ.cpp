@@ -29,13 +29,11 @@ const unsigned char
 // (copied from https://gota7.github.io/NitroStudio2/specs/common.html)
 //
 // NOTE: This function modifies the i passed to it!
-int SSEQ::variable_length(int& i){
+int SSEQ::variable_length(std::vector<char>& data, int& i){
 	int value = 0;
 	do { 
 		value <<= 7;
 		value |= data[i] & 0x7f;
-//		if (data[i] < 0){
-//		}
 		++i;
 	} while (data[i-1] < 0);
 	return value;
@@ -43,6 +41,7 @@ int SSEQ::variable_length(int& i){
 
 void SSEQ::open(std::string filename){
 	std::ifstream is{filename, std::ios::binary | std::ios::in};
+	std::vector<char> data;
 	data.resize(2*1024*1024);
 	is.read(data.data(), 2*1024*1024);
 	
@@ -97,17 +96,17 @@ void SSEQ::open(std::string filename){
 			++i;
 		} else if (event == Event::BANK){
 			events.push_back(Event(event));
-			int instr_bank = variable_length(i);
+			int instr_bank = variable_length(data, i);
 			events.back().value1 = instr_bank & 0x00ff; //instrument
 			events.back().value2 = (instr_bank & 0x3f00) >> 8; //bank
 		} else if (Event::NOTE_LOW <= event && event <= Event::NOTE_HIGH){
 			events.push_back(Event(event));
 			events.back().value1 = static_cast<unsigned char>(data[i]);
 			++i;
-			events.back().value2 = variable_length(i);
+			events.back().value2 = variable_length(data, i);
 		} else if (event == Event::REST){
 			events.push_back(Event(event));
-			events.back().value1 = variable_length(i);
+			events.back().value1 = variable_length(data, i);
 		} else if (event == Event::PITCH_BEND){
 			events.push_back(Event(event));
 			events.back().value1 = data[i];
@@ -196,31 +195,28 @@ void SSEQ::mml(std::string mml){
 	std::vector<std::vector<Event>> channels{8, std::vector<Event>{}};
 	
 	while (index < (int)mml.length()){
-		std::string cmd = std::string{mml[index]};
+		char cmd = mml[index];
 		index++;
+		auto& track = channels[channel];
 		
-		if (cmd == ":"){
+		if (cmd == ':'){
 			if (channel_defines.empty()){
-				channel_defines.emplace_back(Event::TRACKS_ENABLED);
-				channel_defines.back().value1 = 0x01;
+				channel_defines.emplace_back(Event::TRACKS_ENABLED, 0x01);
 			}
 			//Channel select
 			channel = read_digit(mml, index);
 			channel_defines[0].value1 |= 1<<channel;
 			
-			channel_defines.emplace_back(Event::DEFINE_TRACK);
-			channel_defines.back().value1 = channel;
-			channel_defines.back().value2 = 0;
-			
+			if (channel > 0){
+				channel_defines.emplace_back(Event::DEFINE_TRACK, channel, -1); // Offset will be calculated later
+			}
 			length = 4;
 			velocity = 127;
 			octave = 4;
-		} else if (cmd == "T"){
+		} else if (cmd == 'T'){
 			int tempo = read_number(mml, index);
-			
-			channels[channel].emplace_back(Event::TEMPO);
-			channels[channel].back().value1 = tempo;
-		} else if (cmd == "L"){
+			track.emplace_back(Event::TEMPO, tempo);
+		} else if (cmd == 'L'){
 			length = read_number(mml, index);
 			// this is not an event, but defines the length value of future note events
 		} else if (std::string::npos != NOTES.find(cmd)) {
@@ -235,41 +231,50 @@ void SSEQ::mml(std::string mml){
 				note_length = read_number(mml, index);
 			}
 			//TODO: Add check for dots (ex. "C4D2.C4D2.")
+			//should be (2-(1/2^num_dots))*length
 			
-			channels[channel].emplace_back(note);
-			channels[channel].back().value1 = velocity;
-			channels[channel].back().value2 = 192 / note_length;
-			channels[channel].emplace_back(Event::REST);
-			channels[channel].back().value1 = 192 / note_length;
-		} else if (cmd == "<"){
+			track.emplace_back(note, velocity, 192 / note_length);
+			track.emplace_back(Event::REST, 192 / note_length);
+		} else if (cmd == '<'){
 			octave++;
-		} else if (cmd == ">"){
+		} else if (cmd == '>'){
 			octave--;
-		} else if (cmd == "R"){
+		} else if (cmd == 'R'){
 			int note_length = length;
 			if (is_digit(mml[index])){
 				note_length = read_number(mml, index);
 			}
 			
-			channels[channel].emplace_back(Event::REST);
-			channels[channel].back().value1 = 192 / note_length;
-		} else if (cmd == "N"){
+			track.emplace_back(Event::REST, 192 / note_length);
+		} else if (cmd == 'N'){
 			int note = read_number(mml, index);
 			
-			channels[channel].emplace_back(note);
-			channels[channel].back().value1 = velocity;
-			channels[channel].back().value2 = 192 / length;
-			channels[channel].emplace_back(Event::REST);
-			channels[channel].back().value1 = 192 / length;
-		} else if (cmd == "O"){
+			track.emplace_back(note, velocity, 192 / length);
+			track.emplace_back(Event::REST, 192 / length);
+		} else if (cmd == 'O'){
 			octave = read_digit(mml, index);
-		} else if (cmd == "P"){
+		} else if (cmd == 'P'){
 			int pan = read_number(mml, index);
 			
-			channels[channel].emplace_back(Event::PAN);
-			channels[channel].back().value1 = pan;
-		} else if (cmd == "V"){
+			track.emplace_back(Event::PAN, pan);
+		} else if (cmd == 'V'){
 			velocity = read_number(mml, index);
+		} else if (cmd == '@'){
+			if (is_digit(mml[index])){
+				int instrument = read_number(mml, index);
+				track.emplace_back(Event::BANK, instrument, 0); //MML uses bank 0
+			} else {
+				char cmd2 = mml[index];
+				index++;
+				// command is one of:
+				// @D, @E, @ER, @V, @MON, @MOF, @MA, @MP
+				if (cmd2 == 'V'){
+					int volume = read_number(mml, index);
+					track.emplace_back(Event::VOLUME, volume);
+				} else {
+					std::cout << cmd << cmd2 << "* is unimplemented!" << std::endl;
+				}
+			}
 		}
 	}
 	
@@ -281,10 +286,12 @@ void SSEQ::mml(std::string mml){
 		if (!c.empty()){
 			int offset = events.size();
 			int j = 1;
-			while (i != events[j].value1){ // Assumes DEFINE_TRACK exists
-				j++;
+			if (i > 0){ // Assumes DEFINE_TRACK exists, since channels >0 must be explicitly defined
+				while (i != events[j].value1){
+					j++;
+				}
+				events[j].value2 = offset;
 			}
-			events[j].value2 = offset;
 			
 			std::copy(c.begin(), c.end(), std::back_inserter(events));
 			events.emplace_back(Event::END_OF_TRACK);
