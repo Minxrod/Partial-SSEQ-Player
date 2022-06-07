@@ -11,7 +11,7 @@
 
 int main(){
 	SWAR swar;
-	swar.open("test_files/SWAR_0000.swar");
+	swar.open("test_files/ptc/SWAR_0000.swar");
 	
 	// Test SWAR loading
 //	for (int i = 0; i < (int)swar.swav.size(); ++i){
@@ -26,7 +26,7 @@ int main(){
 //	std::cout << swar.swav[230].info() << std::endl;
 	
 	SBNK bank;
-	bank.open("test_files/SBNK_0000.sbnk");
+	bank.open("test_files/ptc/SBNK_0000.sbnk");
 	
 //	for (auto& instr : bank.instruments){
 //		std::cout << instr.info() << std::endl;
@@ -72,8 +72,9 @@ int main(){
 	SSEQStream seqstrm{swar, bank};
 	for (int i = 0; i < 30; ++i){
 		SSEQ sseq{};
-//		sseq.open("test_files/SSEQ_"+std::to_string(i)+".sseq");
-		sseq.mml(":0@V100@4O4CDEFG");
+//		sseq.open("test_files/nsmb/BGM_AMB_CHIKA.sseq");
+//		sseq.open("test_files/ptc/SSEQ_"+std::to_string(i)+".sseq");
+		sseq.mml(":0T180@V127@0O4[[CD]2ER2.]3FG");
 		std::cout << i << ": " << sseq.info() << std::endl;
 		
 		seqstrm.reset();

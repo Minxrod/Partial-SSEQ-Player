@@ -9,6 +9,7 @@
 #include <iostream>
 #include <algorithm>
 #include <numeric>
+#include <cmath>
 
 const unsigned char 
 	Event::REST,
@@ -18,6 +19,8 @@ const unsigned char
 	Event::TEMPO,
 	Event::PAN,
 	Event::VOLUME,
+	Event::LOOP_START,
+	Event::LOOP_END,
 	Event::TRACKS_ENABLED,
 	Event::END_OF_TRACK;
 
@@ -39,6 +42,136 @@ int SSEQ::variable_length(std::vector<char>& data, int& i){
 	return value;
 }
 
+//type: event type
+//data: pointer to start of event parameters (past type)
+Event event_u16(unsigned char type, char* data){
+	return Event(type, binary_as_ushort(data));
+}
+
+Event event_u8_s16(unsigned char type, char* data){
+	return Event(type, static_cast<unsigned char>(data[0]), binary_as_short(&data[1]));
+}
+
+Event event_s8(unsigned char type, char* data){
+	return Event(type, data[0]);
+}
+
+Event event_u8(unsigned char type, char* data){
+	return Event(type, static_cast<unsigned char>(data[0]));
+}
+
+Event SSEQ::read_event(std::vector<char>& d, int& i){
+	unsigned char type = static_cast<unsigned char>(d[i]);
+	++i; //data of event's index (or next event, if no data needed)
+	char* data = &d[i]; //parameter data (if exists)
+	
+	if (type == Event::TRACKS_ENABLED){
+		i+=2; // advance past size of event
+		return event_u16(type, data);
+	} else if (type == Event::DEFINE_TRACK){
+		int track = data[i];
+		int offset = start_offset + binary_as_u24(&data[i+1]);
+		
+		i+=4;
+		return Event(type, track, offset);
+	} else if (type == Event::MONO_POLY){
+		++i;
+		return Event(type, d[i]);
+	} else if (type == Event::TEMPO){
+		i+=2;
+		return event_u16(type, data);
+	} else if (type == Event::VOLUME){
+		++i;
+		return Event(type, d[i]);
+	} else if (type == Event::PAN){
+		++i;
+		return Event(type, d[i]);
+	} else if (type == Event::BANK){
+		int instr_bank = variable_length(d, i);
+		int instrument = instr_bank & 0x00ff; //instrument
+		int bank = (instr_bank & 0x3f00) >> 8; //bank
+		return Event(type, instrument, bank);
+	} else if (Event::NOTE_LOW <= type && type <= Event::NOTE_HIGH){
+		int velocity = static_cast<unsigned char>(data[i]);
+		++i;
+		int duration = variable_length(d, i);
+		return Event(type, velocity, duration);
+	} else if (type == Event::REST){
+		int duration = variable_length(d, i);
+		return Event(type, duration);
+	} else if (type == Event::PITCH_BEND){
+		++i;
+		return event_s8(type, data);
+	} else if (type == Event::PITCH_BEND_RANGE){
+		++i;
+		return event_u8(type, data);
+	} else if (type == Event::MODULATION_DEPTH){
+		++i;
+		return event_u8(type, data);
+	} else if (type == Event::MODULATION_SPEED){
+		++i;
+		return event_u8(type, data);
+	} else if (type == Event::MODULATION_TYPE){
+		++i;
+		return event_u8(type, data);
+	} else if (type == Event::MODULATION_RANGE){
+		++i;
+		return event_u8(type, data);
+	} else if (type == Event::PRIORITY){
+		++i;
+		return event_u8(type, data);
+	} else if (type == Event::VOLUME_2){
+		++i;
+		return event_u8(type, data);
+	} else if (type == Event::CALL){
+		//offset is relative to start of sequence data (same for jump)
+		//needs to add the value defined by START_OFFSET
+		int offset = binary_as_u24(data);
+		i+=3;
+		return Event(type, offset);
+	} else if (type == Event::JUMP){
+		int offset = binary_as_u24(data);
+		i+=3;
+		return Event(type, offset);
+	} else if (type == Event::RETURN){
+		return Event(type);
+	} else if (type == Event::END_OF_TRACK){
+		return Event(type);
+	/*
+	Everything below this point isn't actually implemented in the player
+	*/
+	} else if (type == Event::SET_VARIABLE){
+		i+=3;
+		return event_u8_s16(type, data);
+	} else if (type == Event::SUSTAIN){
+		++i;
+		return Event(type, d[i]);
+	} else if (type == Event::SET_VARIABLE_RANDOM){
+		i+=3;
+		return event_u8_s16(type, data);
+	} else if (type == Event::COMPARE_LE){
+		i+=3;
+		return event_u8_s16(type, data);
+	} else if (type == Event::IF){
+//		read_event(d, i);
+		return Event(type);
+	} else if (type == Event::TIE){
+		++i;
+		return Event(type, d[i-1]);
+	} else if (type == Event::RANDOM_RANGE){
+//		read_event(d, i); //need to parse arg, but remove last argument...
+		read_event(d, i);
+		int lower = binary_as_short(&d[i+0]);
+		int upper = binary_as_short(&d[i+2]);
+		i+=4;
+		return Event(type, lower, upper);
+	} else {
+		std::cout << "Unknown type " << as_hex(type) << " at location " << as_hex(i-1) << std::endl;
+		throw std::runtime_error{"Unknown type!"};
+	}
+	
+}
+
 void SSEQ::open(std::string filename){
 	std::ifstream is{filename, std::ios::binary | std::ios::in};
 	std::vector<char> data;
@@ -47,118 +180,17 @@ void SSEQ::open(std::string filename){
 	
 //	channels.resize(16);
 	
-	int start_offset = binary_as_int(&data[START_OFFSET]);
+	start_offset = binary_as_int(&data[START_OFFSET]);
 	int filesize = 0x10 + binary_as_int(&data[SIZE]);
 	int i = start_offset;
 	
 	while (i < filesize){
-		unsigned char event = static_cast<unsigned char>(data[i]);
-		event_location.push_back(i);
-		++i; //data of event's index (or next event, if no data needed)
-		
-		if (event == Event::TRACKS_ENABLED){
-			int tracks = binary_as_ushort(&data[i]);
-//			for (int b = 0; b < 16; ++b){
-//				if (tracks & (1<<b)){
-//					channels[b].id = b;
-//					channels[b].enabled = true; //channel 0 is not defined well??
-//				}
-//			}
-			i+=2;
-			events.emplace_back(event);
-			events.back().value1 = tracks;
-		} else if (event == Event::DEFINE_TRACK){
-			int track = data[i];
-			int offset = start_offset + binary_as_u24(&data[i+1]);
-			
-//			channels[track].offset = offset;
-//			channels[track].enabled = true;
-			i+=4;
-			events.emplace_back(event);
-			events.back().value1 = track;
-			events.back().value2 = offset;
-		} else if (event == Event::MONO_POLY){
-			events.emplace_back(event);
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::TEMPO){
-			events.emplace_back(event);
-			events.back().value1 = binary_as_ushort(&data[i]);
-			tempo = events.back().value1;
-			i+=2;
-		} else if (event == Event::VOLUME){
-			events.push_back(Event(event));
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::PAN){
-			events.push_back(Event(event));
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::BANK){
-			events.push_back(Event(event));
-			int instr_bank = variable_length(data, i);
-			events.back().value1 = instr_bank & 0x00ff; //instrument
-			events.back().value2 = (instr_bank & 0x3f00) >> 8; //bank
-		} else if (Event::NOTE_LOW <= event && event <= Event::NOTE_HIGH){
-			events.push_back(Event(event));
-			events.back().value1 = static_cast<unsigned char>(data[i]);
-			++i;
-			events.back().value2 = variable_length(data, i);
-		} else if (event == Event::REST){
-			events.push_back(Event(event));
-			events.back().value1 = variable_length(data, i);
-		} else if (event == Event::PITCH_BEND){
-			events.push_back(Event(event));
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::PITCH_BEND_RANGE){
-			events.push_back(Event(event));
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::PITCH_BEND_RANGE){
-			events.push_back(Event(event));
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::MODULATION_DEPTH){
-			events.emplace_back(event);
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::MODULATION_SPEED){
-			events.emplace_back(event);
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::MODULATION_TYPE){
-			events.emplace_back(event);
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::MODULATION_RANGE){
-			events.emplace_back(event);
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::PRIORITY){
-			events.emplace_back(event);
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::VOLUME_2){
-			events.emplace_back(event);
-			events.back().value1 = data[i];
-			++i;
-		} else if (event == Event::CALL){
-			events.push_back(Event(event));
-			events.back().value1 = binary_as_u24(&data[i]) + start_offset;
-			 //offset is relative to start of sequence data (same for jump)
-			i+=3;
-		} else if (event == Event::JUMP){
-			events.emplace_back(event);
-			events.back().value1 = binary_as_u24(&data[i]) + start_offset;
-			i+=3;
-		} else if (event == Event::RETURN){
-			events.emplace_back(event);
-		} else if (event == Event::END_OF_TRACK){
-			events.emplace_back(event);
-		} else {
-			std::cout << "Unknown type " << as_hex(event) << " at location " << as_hex(i-1) << std::endl;
-			break; //early exit for unknown type
+		event_location.push_back(i - start_offset);
+		Event event = read_event(data, i);
+		events.push_back(event);
+		if (event.type == Event::RANDOM_RANGE){
+//			int seq_command_loc = 1 + event_location.back();
+			std::cout << "WARNING: all events beyond event at " << as_hex(event_location.back()) << " will be wrong" << std::endl;
 		}
 	}
 }
@@ -183,6 +215,15 @@ int read_number(std::string data, int& index){
 	return std::stoi(data.substr(old_index, index-old_index));
 }
 
+int read_dots(std::string data, int& index){
+	int dots = 0;
+	while (data[index] == '.'){
+		index++;
+		dots++;
+	}
+	return dots;
+}
+
 void SSEQ::mml(std::string mml){
 	int index = 0;
 	int channel = 0;
@@ -193,6 +234,7 @@ void SSEQ::mml(std::string mml){
 	const std::string SEMITONE = "-#+"; 
 	std::vector<Event> channel_defines{};
 	std::vector<std::vector<Event>> channels{8, std::vector<Event>{}};
+	std::vector<int> loop_starts{};
 	
 	while (index < (int)mml.length()){
 		char cmd = mml[index];
@@ -230,8 +272,7 @@ void SSEQ::mml(std::string mml){
 			if (is_digit(mml[index])){
 				note_length = read_number(mml, index);
 			}
-			//TODO: Add check for dots (ex. "C4D2.C4D2.")
-			//should be (2-(1/2^num_dots))*length
+			note_length *= 2-std::pow(0.5, read_dots(mml, index));
 			
 			track.emplace_back(note, velocity, 192 / note_length);
 			track.emplace_back(Event::REST, 192 / note_length);
@@ -244,6 +285,7 @@ void SSEQ::mml(std::string mml){
 			if (is_digit(mml[index])){
 				note_length = read_number(mml, index);
 			}
+			note_length *= 2-std::pow(0.5, read_dots(mml, index));
 			
 			track.emplace_back(Event::REST, 192 / note_length);
 		} else if (cmd == 'N'){
@@ -275,6 +317,19 @@ void SSEQ::mml(std::string mml){
 					std::cout << cmd << cmd2 << "* is unimplemented!" << std::endl;
 				}
 			}
+		} else if (cmd == '[') {
+			loop_starts.push_back(track.size()); //index of start event
+			track.emplace_back(Event::LOOP_START, -1); // will be replaced when endpoint is found
+		} else if (cmd == ']') {
+			int loop_length = 0; // default is zero (infinite)
+			if (is_digit(mml[index])){
+				loop_length = read_number(mml, index);
+			}
+			
+			int index = loop_starts.back();
+			loop_starts.pop_back();
+			track[index].value1 = loop_length;
+			track.emplace_back(Event::LOOP_END);
 		}
 	}
 	
@@ -348,6 +403,8 @@ std::string Event::info(){
 		info += " Tempo [BPM:" + std::to_string(value1)+ "]";
 	} else if (type == Event::DEFINE_TRACK){
 		info += " Define track [Channel:" + std::to_string(value1) + " Offset:" + as_hex(value2) + "]";
+	} else if (type == Event::TRACKS_ENABLED){
+		info += " Tracks enabled: " + as_hex(value1);
 	} else {
 		info += " Type " + as_hex(type);
 		info += " Data " + as_hex(value1) + ", " + as_hex(value2);

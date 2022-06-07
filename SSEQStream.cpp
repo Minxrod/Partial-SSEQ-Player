@@ -189,13 +189,30 @@ bool SSEQStream::onGetData(Chunk& chunk){
 					channel.volume = event.value1;
 				} else if (event.type == Event::PAN){
 					channel.pan = event.value1;
+				} else if (event.type == Event::LOOP_START){
+					channel.loop_stack.push_back(channel.current_index);
+					channel.loop_stack.push_back(event.value1); // loop count
+				} else if (event.type == Event::LOOP_END){
+					int count_remaining = channel.loop_stack.back();
+					if (count_remaining == 0){
+						channel.current_index = channel.loop_stack[channel.loop_stack.size()-2];
+					} else {
+						--channel.loop_stack.back(); // decrement remaining count
+						
+						if (channel.loop_stack.back() == 0){ //do not loop again if out of remaining loops
+							channel.loop_stack.pop_back(); //remove count
+							channel.loop_stack.pop_back(); //remove begin index
+						} else {
+							//loop once
+							channel.current_index = channel.loop_stack[channel.loop_stack.size()-2];
+						}
+					}
 				} else if (event.type == Event::VOLUME_2){ //Also called "EXPRESSION" according to GBAtek
 					// what does this do??
 //					std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
 				} else {
-					instant_event = false;
 					// Displays unimplemented events
-//					std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
+					std::cout << "UNIMPLEMENTED: " << event.info() << std::endl;
 				}
 				if (event.type != Event::JUMP && event.type != Event::CALL && event.type != Event::RETURN) {
 					channel.current_index++;
