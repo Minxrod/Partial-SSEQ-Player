@@ -74,13 +74,13 @@ int main(){
 		SSEQ sseq{};
 //		sseq.open("test_files/nsmb/BGM_AMB_CHIKA.sseq");
 //		sseq.open("test_files/ptc/SSEQ_"+std::to_string(i)+".sseq");
-		sseq.mml(":0T180@V127@0O4[[CD]2ER2.]3FG");
+		sseq.mml(":0T180@V127@0O4[[CD]ER2.]0FG");
 		std::cout << i << ": " << sseq.info() << std::endl;
 		
 		seqstrm.reset();
 		seqstrm.set_sseq(&sseq);
 		seqstrm.play();
-		sf::sleep(sf::seconds(10));
+		sf::sleep(sf::seconds(30));
 		seqstrm.stop(); //needed here (probably) because sseq gets destroyed after this point
 	}
 //	std::cout << sseq.info() << std::endl;

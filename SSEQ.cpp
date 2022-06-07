@@ -262,7 +262,7 @@ void SSEQ::mml(std::string mml){
 			length = read_number(mml, index);
 			// this is not an event, but defines the length value of future note events
 		} else if (std::string::npos != NOTES.find(cmd)) {
-			int note = octave * 12 + NOTES.find(cmd);
+			int note = (octave + 1) * 12 + NOTES.find(cmd); //Might be off by an octave??
 			if (index < (int)mml.length() && SEMITONE.find(mml[index]) != std::string::npos){
 				int accidental = mml[index];
 				index++;
@@ -382,7 +382,7 @@ std::string Event::info(){
 	} else if (type == Event::BANK){
 		info += " Bank [Prog.No:" + as_hex(value1) + ", Bank:" + std::to_string(value2) + "]";
 	} else if (Event::NOTE_LOW <= type && type <= Event::NOTE_HIGH){
-		info += " Note O" + std::to_string(type / 12) + notes.at(type % 12) + " [Velocity: " + std::to_string(value1) + ", Duration: " + std::to_string(value2) + "]";
+		info += " Note O" + std::to_string(type / 12 - 1) + notes.at(type % 12) + " [Velocity: " + std::to_string(value1) + ", Duration: " + std::to_string(value2) + "]";
 	} else if (type == Event::REST){
 		info += " Rest [Duration:" + std::to_string(value1) + "]";
 	} else if (type == Event::PITCH_BEND){
