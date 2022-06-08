@@ -119,7 +119,7 @@ bool SSEQStream::onGetData(Chunk& chunk){
 					
 				auto& event = sseq->events.at(channel.current_index);
 				if (event.type == Event::BANK){
-					channel.instr = (static_cast<unsigned char>(event.value1) % 128) + 256 * event.value2;
+					channel.instr = (static_cast<unsigned char>(event.value1) % 256) + 256 * event.value2;
 //					std::cout << channel.id << " " << event.value1 << " " << event.value2 << std::endl;
 					//std::cout << sbnk.instruments[channel.instr].info() << std::endl;
 				} else if (event.type == Event::TRACKS_ENABLED) {

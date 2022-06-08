@@ -28,9 +28,9 @@ int main(){
 	SBNK bank;
 	bank.open("test_files/ptc/SBNK_0000.sbnk");
 	
-//	for (auto& instr : bank.instruments){
-//		std::cout << instr.info() << std::endl;
-//	}
+	for (auto& instr : bank.instruments){
+		std::cout << instr.info() << std::endl;
+	}
 //	
 //	SWAVStream strm2{swar.swav[279]};
 //	strm2.play();
@@ -74,7 +74,7 @@ int main(){
 		SSEQ sseq{};
 //		sseq.open("test_files/nsmb/BGM_AMB_CHIKA.sseq");
 //		sseq.open("test_files/ptc/SSEQ_"+std::to_string(i)+".sseq");
-		sseq.mml(":0T180@V127@0O4[[CD]ER2.]0FG");
+		sseq.mml(":0T180@224O4[[CD]ER2.]0FG");
 		std::cout << i << ": " << sseq.info() << std::endl;
 		
 		seqstrm.reset();
