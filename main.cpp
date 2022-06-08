@@ -28,9 +28,9 @@ int main(){
 	SBNK bank;
 	bank.open("test_files/ptc/SBNK_0000.sbnk");
 	
-	for (auto& instr : bank.instruments){
-		std::cout << instr.info() << std::endl;
-	}
+//	for (auto& instr : bank.instruments){
+//		std::cout << instr.info() << std::endl;
+//	}
 //	
 //	SWAVStream strm2{swar.swav[279]};
 //	strm2.play();
