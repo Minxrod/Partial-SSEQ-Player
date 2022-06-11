@@ -69,30 +69,30 @@ Event SSEQ::read_event(std::vector<char>& d, int& i){
 		i+=2; // advance past size of event
 		return event_u16(type, data);
 	} else if (type == Event::DEFINE_TRACK){
-		int track = data[i];
-		int offset = start_offset + binary_as_u24(&data[i+1]);
+		int track = d[i];
+		int offset = binary_as_u24(&d[i+1]);
 		
 		i+=4;
 		return Event(type, track, offset);
 	} else if (type == Event::MONO_POLY){
 		++i;
-		return Event(type, d[i]);
+		return event_u8(type, data);
 	} else if (type == Event::TEMPO){
 		i+=2;
 		return event_u16(type, data);
 	} else if (type == Event::VOLUME){
 		++i;
-		return Event(type, d[i]);
+		return event_u8(type, data);
 	} else if (type == Event::PAN){
 		++i;
-		return Event(type, d[i]);
+		return event_u8(type, data);
 	} else if (type == Event::BANK){
 		int instr_bank = variable_length(d, i);
 		int instrument = instr_bank & 0x00ff; //instrument
 		int bank = (instr_bank & 0x3f00) >> 8; //bank
 		return Event(type, instrument, bank);
 	} else if (Event::NOTE_LOW <= type && type <= Event::NOTE_HIGH){
-		int velocity = static_cast<unsigned char>(data[i]);
+		int velocity = static_cast<unsigned char>(d[i]);
 		++i;
 		int duration = variable_length(d, i);
 		return Event(type, velocity, duration);
@@ -124,8 +124,6 @@ Event SSEQ::read_event(std::vector<char>& d, int& i){
 		++i;
 		return event_u8(type, data);
 	} else if (type == Event::CALL){
-		//offset is relative to start of sequence data (same for jump)
-		//needs to add the value defined by START_OFFSET
 		int offset = binary_as_u24(data);
 		i+=3;
 		return Event(type, offset);

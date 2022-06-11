@@ -73,8 +73,8 @@ int main(){
 	for (int i = 0; i < 30; ++i){
 		SSEQ sseq{};
 //		sseq.open("test_files/nsmb/BGM_AMB_CHIKA.sseq");
-//		sseq.open("test_files/ptc/SSEQ_"+std::to_string(i)+".sseq");
-		sseq.mml(":0T180@224O4[[CD]ER2.]0FG");
+		sseq.open("test_files/ptc/SSEQ_"+std::to_string(i)+".sseq");
+//		sseq.mml(":0T180@224O4[[CD]ER2.]0FG");
 		std::cout << i << ": " << sseq.info() << std::endl;
 		
 		seqstrm.reset();
