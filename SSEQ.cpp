@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <numeric>
 #include <cmath>
+#include <map>
 
 const unsigned char 
 	Event::REST,
@@ -19,6 +20,7 @@ const unsigned char
 	Event::TEMPO,
 	Event::PAN,
 	Event::VOLUME,
+	Event::TIE,
 	Event::LOOP_START,
 	Event::LOOP_END,
 	Event::TRACKS_ENABLED,
@@ -155,7 +157,7 @@ Event SSEQ::read_event(std::vector<char>& d, int& i){
 		return Event(type);
 	} else if (type == Event::TIE){
 		++i;
-		return Event(type, d[i-1]);
+		return event_u8(type, data);
 	} else if (type == Event::RANDOM_RANGE){
 //		read_event(d, i); //need to parse arg, but remove last argument...
 		read_event(d, i);
@@ -234,6 +236,10 @@ void SSEQ::mml(std::string mml){
 	std::vector<std::vector<Event>> channels{8, std::vector<Event>{}};
 	std::vector<int> loop_starts{};
 	
+	std::map<std::string, std::string> macros;
+	bool is_tied = false;
+	int gate_time = 8;
+	
 	while (index < (int)mml.length()){
 		char cmd = mml[index];
 		index++;
@@ -272,8 +278,13 @@ void SSEQ::mml(std::string mml){
 			}
 			note_length *= 2-std::pow(0.5, read_dots(mml, index));
 			
-			track.emplace_back(note, velocity, 192 / note_length);
+			track.emplace_back(note, velocity, 192 / note_length * gate_time / 8);
 			track.emplace_back(Event::REST, 192 / note_length);
+			if (is_tied){
+				track.emplace_back(Event::TIE, 0);
+				is_tied = false;
+			}
+			
 		} else if (cmd == '<'){
 			octave++;
 		} else if (cmd == '>'){
@@ -289,7 +300,7 @@ void SSEQ::mml(std::string mml){
 		} else if (cmd == 'N'){
 			int note = read_number(mml, index);
 			
-			track.emplace_back(note, velocity, 192 / length);
+			track.emplace_back(note, velocity, 192 / length * gate_time / 8);
 			track.emplace_back(Event::REST, 192 / length);
 		} else if (cmd == 'O'){
 			octave = read_digit(mml, index);
@@ -328,6 +339,44 @@ void SSEQ::mml(std::string mml){
 			loop_starts.pop_back();
 			track[index].value1 = loop_length;
 			track.emplace_back(Event::LOOP_END);
+		} else if (cmd == '{'){
+			auto old_index = index;
+			std::string label;
+			std::string macro;
+			char c = mml[index];
+			bool is_new = false;
+			int nest = 1;
+			while (nest>=1){
+				if (c == '{') nest++;
+				if (c == '}') nest--;
+				if (nest == 0){
+					break;
+				}
+				
+				is_new |= c == '=';
+				if (!is_new)
+					label += c;
+				else if (c != '=')
+					macro += c;
+				++index;
+				c = mml[index];
+			}
+			
+			if (is_new){
+				macros.insert({label, macro});
+			} else {
+				std::cout << mml << "\n";
+				mml.replace(old_index-1, label.size()+2, macros.at(label));
+				index = old_index-1;
+				std::cout << mml << std::endl;
+			}
+		} else if (cmd == '&'){
+			// set tie ON / after next note, disable it?
+			track.emplace_back(Event::TIE, 1);
+			is_tied	= true;
+		} else if (cmd == 'Q'){
+			// not a sequence command?
+			gate_time = read_digit(mml, index);
 		}
 	}
 	

@@ -172,7 +172,6 @@ bool SSEQStream::onGetData(Chunk& chunk){
 					note->channel = &channel;
 					note->adsr_sample = 1;
 					note->adsr_update_rate = -1;
-					
 				} else if (event.type == Event::REST) {
 					instant_event = false;
 					channel.next_process_delay = duration(tempo, event.value1);
