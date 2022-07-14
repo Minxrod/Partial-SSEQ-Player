@@ -237,7 +237,7 @@ void SSEQ::mml(std::string mml){
 	std::vector<int> loop_starts{};
 	
 	std::map<std::string, std::string> macros;
-	bool is_tied = false;
+	bool is_tied;
 	int gate_time = 8;
 	
 	while (index < (int)mml.length()){
@@ -276,11 +276,17 @@ void SSEQ::mml(std::string mml){
 			if (is_digit(mml[index])){
 				note_length = read_number(mml, index);
 			}
-			note_length *= 2-std::pow(0.5, read_dots(mml, index));
+			note_length /= (2.0-std::pow(0.5, read_dots(mml, index)));
+			
+			if (mml[index] == '&'){
+				track.emplace_back(Event::TIE, 1);
+				is_tied	= true;
+			}
 			
 			track.emplace_back(note, velocity, 192 / note_length * gate_time / 8);
 			track.emplace_back(Event::REST, 192 / note_length);
-			if (is_tied){
+			
+			if (is_tied && mml[index] != '&'){
 				track.emplace_back(Event::TIE, 0);
 				is_tied = false;
 			}
@@ -294,7 +300,7 @@ void SSEQ::mml(std::string mml){
 			if (is_digit(mml[index])){
 				note_length = read_number(mml, index);
 			}
-			note_length *= 2-std::pow(0.5, read_dots(mml, index));
+			note_length /= (2.0-std::pow(0.5, read_dots(mml, index)));
 			
 			track.emplace_back(Event::REST, 192 / note_length);
 		} else if (cmd == 'N'){
@@ -370,10 +376,6 @@ void SSEQ::mml(std::string mml){
 				index = old_index-1;
 				std::cout << mml << std::endl;
 			}
-		} else if (cmd == '&'){
-			// set tie ON / after next note, disable it?
-			track.emplace_back(Event::TIE, 1);
-			is_tied	= true;
 		} else if (cmd == 'Q'){
 			// not a sequence command?
 			gate_time = read_digit(mml, index);
