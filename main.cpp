@@ -11,7 +11,7 @@
 
 int main(){
 	SWAR swar;
-	swar.open("test_files/ptc/SWAR_0000.swar");
+	swar.open("test_files/ptc/SWAR_0.swar");
 	
 	// Test SWAR loading
 //	for (int i = 0; i < (int)swar.swav.size(); ++i){
@@ -26,7 +26,7 @@ int main(){
 //	std::cout << swar.swav[230].info() << std::endl;
 	
 	SBNK bank;
-	bank.open("test_files/ptc/SBNK_0000.sbnk");
+	bank.open("test_files/ptc/SBNK_0.sbnk");
 	
 //	for (auto& instr : bank.instruments){
 //		std::cout << instr.info() << std::endl;

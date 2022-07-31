@@ -6,6 +6,9 @@
 
 void SBNK::open(std::string filename){
 	std::ifstream is{filename, std::ios::binary | std::ios::in};
+	if (!is.is_open()){
+		throw std::runtime_error{"Could not open file" + filename};
+	}
 	data.resize(2*1024*1024);
 	is.read(data.data(), 2*1024*1024);
 	

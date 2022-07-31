@@ -40,7 +40,7 @@ int SSEQ::variable_length(std::vector<char>& data, int& i){
 		value <<= 7;
 		value |= data[i] & 0x7f;
 		++i;
-	} while (data[i-1] < 0);
+	} while (data[i-1] & 0x80);
 	return value;
 }
 
