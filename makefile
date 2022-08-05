@@ -15,5 +15,6 @@ all: lib exec
 clean:
 	rm -f SSEQTest
 	rm -f libSSEQPlayer.so
+	rm -f *.o
 
 -include $(objs:%.o=%.d)
